@@ -1,0 +1,4 @@
+code,discount,discountType,type,orderMinAmount,startDate,endDate,isActive,externalId
+SUMMER10,10,PERCENTILE,MULTI_USE,0,,,true,
+WELCOME5,5,FIXED,SINGLE_USE,20,,,true,welcome-campaign-001
+FLASH25,25,PERCENTILE,MULTI_USE,15,2026-06-01,2026-06-30,true,

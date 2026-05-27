@@ -1,0 +1,16 @@
+{
+  "name": "gonnaorder-scripts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Web utilities that interact with the GonnaOrder admin API.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "echo 'static site, nothing to build'",
+    "dev": "netlify dev"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
