@@ -27,10 +27,18 @@ Initial design stored `GONNAORDER_USERNAME` and `GONNAORDER_PASSWORD` as Netlify
 
 Env vars deleted from Netlify. Tool is now usable by anyone with a GonnaOrder account.
 
-### Post-deploy fix: FIXED vouchers need `initialValue`
+### Post-deploy fix: wrong enum strings (WELCOME5 row)
 
-First live test (store 5770) imported 2/3 sample rows. The third — `WELCOME5`, the only `FIXED + SINGLE_USE` row — returned `400 "Failed to read request"`.
+First live test (store 5770) imported 2/3 sample rows. The third — `WELCOME5`, the only non-percentile non-multi-use row — returned `400 "Failed to read request"`.
 
-Cause: the n8n flow always sent `initialValue: null` because it was only ever used for PERCENTILE vouchers. The API quietly requires `initialValue` to equal the discount amount for FIXED vouchers (the voucher's monetary worth). Sending null trips a deserialization failure that surfaces as the unhelpful generic 400.
+**False start:** I guessed `discountType` was `"FIXED"` and patched the function to set `initialValue = discount` for FIXED. Both wrong.
 
-Fix: in `create-vouchers.js`, compute `initialValue` as `discount` when `discountType === "FIXED"`, otherwise `null`. Also improved error surfacing — the function now pulls the `detail`/`message` field out of the GonnaOrder error envelope so per-row errors in the UI are readable. Documented in CLAUDE.md API gotchas.
+**Real cause (from a working API payload Ioustinos pasted):** two enum strings I'd guessed are wrong:
+- `discountType`: API uses `MONETARY` (not `FIXED`) for monetary vouchers. UI label is "Monetary" so it actually matches — I'd over-thought it.
+- `type`: API uses `ONE_TIME_USE` (not `SINGLE_USE`). UI label is "Single Use" but the API enum is the longer phrase.
+
+`initialValue` is `null` for both PERCENTILE and MONETARY in the working payload — no need to compute it from discount. Reverted that change.
+
+Fix: corrected both enums in `netlify/functions/create-vouchers.js`, in the row normalizer + validation in `public/index.html`, and in `public/sample-vouchers.csv`. The frontend still accepts the older aliases (`FIXED`, `SINGLE_USE`, `%`, etc.) and normalizes them so CSVs that used my wrong values still work.
+
+Lesson logged in CLAUDE.md: a generic `400 "Failed to read request"` from voucher create almost always means an unknown enum string — the deserializer doesn't give field-level errors.

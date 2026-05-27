@@ -72,25 +72,24 @@ server-side secrets (Sentry DSN, etc.), they go here.
   `{ tokens: { jwt } }`. Send `Authorization: Bearer <jwt>` on subsequent calls.
 - Create voucher: `POST /stores/{storeId}/customer-voucher` with the payload
   shown in `netlify/functions/create-vouchers.js`. Fields worth knowing:
-  - `discountType: "PERCENTILE" | "FIXED"` — note **PERCENTILE**, not
-    PERCENTAGE. The UI says "Percentage" but the API uses "PERCENTILE".
-    The monetary value is currently coded as `"FIXED"` — this was a guess
-    based on common API conventions. The UI label is "Monetary", so it
-    may need to be `"MONETARY"` instead. **To verify:** use the page's
-    "🔍 Inspect existing vouchers" button against a store that already has
-    a monetary voucher and look at the returned `discountType`. If it's
-    `"MONETARY"`, change the constant in `netlify/functions/create-vouchers.js`
-    (search for `FIXED`) and update this note.
-  - `type: "MULTI_USE" | "SINGLE_USE"`
+  - `discountType: "PERCENTILE" | "MONETARY"` — the UI labels ("Percentage"
+    and "Monetary") don't match the API enums. Both are subtly off:
+    Percentage → **PERCENTILE** (yes, the statistical word), Monetary →
+    **MONETARY** (UI label happens to match this one). Don't trust the UI
+    label as a guide.
+  - `type: "MULTI_USE" | "ONE_TIME_USE"` — same trap. UI says "Single Use"
+    but the API enum is **ONE_TIME_USE** (not `SINGLE_USE`).
   - `scheduleId: "null"` — yes, the **string** `"null"`. That's what the n8n
     flow sends and what works.
   - Dates are full ISO strings.
-  - `initialValue`: must be the **monetary worth of the voucher when
-    `discountType === "FIXED"`** (so for a €5-off fixed voucher, set it to
-    `5`). For `PERCENTILE` vouchers leave it `null`. Sending `null` for a
-    FIXED voucher returns the generic `400 "Failed to read request"` — not
-    a friendly validation error, just a deserialization failure. Caught
-    during the first e2e test on 2026-05-28 (GO-3) with WELCOME5.
+  - `initialValue: null` for both PERCENTILE and MONETARY vouchers. Confirmed
+    from a real working POST payload (Ioustinos pasted it 2026-05-28). My
+    earlier guess that MONETARY needed `initialValue = discount` was wrong —
+    don't reinstate it.
+  - Generic `400 "Failed to read request"` from a voucher create almost
+    always means one of the enum strings above is wrong — the API
+    deserializer rejects unknown enum values with that opaque message
+    instead of a field-level error.
 
 ## How to add a new script
 

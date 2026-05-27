@@ -26,8 +26,8 @@ CSV columns:
 |---|---|---|---|
 | `code` | yes | — | string |
 | `discount` | yes | — | number |
-| `discountType` | no | `PERCENTILE` | `PERCENTILE`, `FIXED` (also accepts `PERCENTAGE` / `MONETARY`) |
-| `type` | no | `MULTI_USE` | `MULTI_USE`, `SINGLE_USE` |
+| `discountType` | no | `PERCENTILE` | `PERCENTILE`, `MONETARY` (also accepts `PERCENTAGE`, `FIXED`, `%`, `€`) |
+| `type` | no | `MULTI_USE` | `MULTI_USE`, `ONE_TIME_USE` (also accepts `SINGLE_USE`) |
 | `orderMinAmount` | no | `0` | number |
 | `startDate` | no | today | `YYYY-MM-DD` |
 | `endDate` | no | today + 6 months | `YYYY-MM-DD` |

@@ -118,7 +118,7 @@
         <input type="file" id="file" accept=".csv,.xlsx,.xls" />
         <div id="dropText">Drop a CSV or Excel file here, or click to choose.</div>
       </label>
-      <div class="help">Columns: <code>code</code>, <code>discount</code>, <code>discountType</code>, <code>type</code>, <code>orderMinAmount</code>, <code>startDate</code>, <code>endDate</code>, <code>isActive</code>, <code>externalId</code>. Only <code>code</code> and <code>discount</code> are required.</div>
+      <div class="help">Columns: <code>code</code>, <code>discount</code>, <code>discountType</code> (<code>PERCENTILE</code> or <code>MONETARY</code>), <code>type</code> (<code>MULTI_USE</code> or <code>ONE_TIME_USE</code>), <code>orderMinAmount</code>, <code>startDate</code>, <code>endDate</code>, <code>isActive</code>, <code>externalId</code>. Only <code>code</code> and <code>discount</code> are required.</div>
     </div>
 
     <div class="panel" id="previewPanel" style="display:none;">
@@ -213,12 +213,13 @@
       r.code = get('code');
       r.discount = get('discount');
       r.discountType = (get('discountType') || 'PERCENTILE').toUpperCase();
-      // Allow common aliases
-      if (r.discountType === 'PERCENTAGE' || r.discountType === '%') r.discountType = 'PERCENTILE';
-      if (r.discountType === 'MONETARY' || r.discountType === 'EUR' || r.discountType === '€') r.discountType = 'FIXED';
+      // Allow common aliases — the API uses PERCENTILE / MONETARY (not PERCENTAGE / FIXED)
+      if (['PERCENTAGE', '%', 'PERCENT'].includes(r.discountType)) r.discountType = 'PERCENTILE';
+      if (['FIXED', 'EUR', '€', 'AMOUNT', 'MONEY'].includes(r.discountType)) r.discountType = 'MONETARY';
       r.type = (get('type') || 'MULTI_USE').toUpperCase().replace(/[\s-]/g, '_');
-      if (r.type === 'SINGLE' || r.type === 'SINGLEUSE') r.type = 'SINGLE_USE';
-      if (r.type === 'MULTI' || r.type === 'MULTIUSE') r.type = 'MULTI_USE';
+      // API uses MULTI_USE / ONE_TIME_USE — accept various aliases
+      if (['SINGLE', 'SINGLEUSE', 'SINGLE_USE', 'ONETIME', 'ONETIMEUSE', 'ONE_TIME'].includes(r.type)) r.type = 'ONE_TIME_USE';
+      if (['MULTI', 'MULTIUSE'].includes(r.type)) r.type = 'MULTI_USE';
       r.orderMinAmount = get('orderMinAmount') || '0';
       r.startDate = get('startDate');
       r.endDate = get('endDate');
@@ -230,8 +231,8 @@
       const errors = [];
       if (!r.code) errors.push('code is required');
       if (!r.discount || isNaN(Number(r.discount))) errors.push('discount must be a number');
-      if (!['PERCENTILE', 'FIXED'].includes(r.discountType)) errors.push('discountType must be PERCENTILE or FIXED');
-      if (!['MULTI_USE', 'SINGLE_USE'].includes(r.type)) errors.push('type must be MULTI_USE or SINGLE_USE');
+      if (!['PERCENTILE', 'MONETARY'].includes(r.discountType)) errors.push('discountType must be PERCENTILE or MONETARY');
+      if (!['MULTI_USE', 'ONE_TIME_USE'].includes(r.type)) errors.push('type must be MULTI_USE or ONE_TIME_USE');
       if (r.discountType === 'PERCENTILE' && (Number(r.discount) <= 0 || Number(r.discount) > 100)) {
         errors.push('percentage discount must be between 1 and 100');
       }

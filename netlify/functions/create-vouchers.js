@@ -81,21 +81,22 @@ async function createVoucher(jwt, storeId, row) {
   const sixMonthsLater = new Date(now);
   sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
 
-  const discountType = row.discountType || "PERCENTILE";
-  const discount = Number(row.discount);
+  // GonnaOrder API enums (the UI labels and the API enum strings don't match):
+  //   UI "Percentage"  → API "PERCENTILE"
+  //   UI "Monetary"    → API "MONETARY"
+  //   UI "Multi Use"   → API "MULTI_USE"
+  //   UI "Single Use"  → API "ONE_TIME_USE"
+  // Verified from a real working POST payload Ioustinos shared 2026-05-28.
 
   const payload = {
     code: String(row.code),
     startDate: row.startDate ? toIso(row.startDate) : now.toISOString(),
     endDate: row.endDate ? toIso(row.endDate) : sixMonthsLater.toISOString(),
-    discount,
+    discount: Number(row.discount),
     orderMinAmount: Number(row.orderMinAmount) || 0,
-    // For FIXED-amount vouchers, the API expects the monetary worth of the voucher
-    // in initialValue. For PERCENTILE vouchers it stays null. (Discovered the hard
-    // way — the n8n flow only ever did PERCENTILE, so it always sent null.)
-    initialValue: discountType === "FIXED" ? discount : null,
+    initialValue: null,  // null for both PERCENTILE and MONETARY — confirmed from working payload
     type: row.type || "MULTI_USE",
-    discountType,
+    discountType: row.discountType || "PERCENTILE",
     isActive: row.isActive === false ? false : true,
     categoryIds: null,
     scheduleId: "null",
