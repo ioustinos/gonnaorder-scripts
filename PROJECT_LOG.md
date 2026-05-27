@@ -26,3 +26,11 @@ First script: bulk voucher importer.
 Initial design stored `GONNAORDER_USERNAME` and `GONNAORDER_PASSWORD` as Netlify env vars sourced from the n8n flow — Ioustinos pointed out this hardcodes the tool to his account. Switched to per-request credentials in the body: user types email + password in the UI, function uses them once, discards them. Browser remembers only the email in `localStorage`.
 
 Env vars deleted from Netlify. Tool is now usable by anyone with a GonnaOrder account.
+
+### Post-deploy fix: FIXED vouchers need `initialValue`
+
+First live test (store 5770) imported 2/3 sample rows. The third — `WELCOME5`, the only `FIXED + SINGLE_USE` row — returned `400 "Failed to read request"`.
+
+Cause: the n8n flow always sent `initialValue: null` because it was only ever used for PERCENTILE vouchers. The API quietly requires `initialValue` to equal the discount amount for FIXED vouchers (the voucher's monetary worth). Sending null trips a deserialization failure that surfaces as the unhelpful generic 400.
+
+Fix: in `create-vouchers.js`, compute `initialValue` as `discount` when `discountType === "FIXED"`, otherwise `null`. Also improved error surfacing — the function now pulls the `detail`/`message` field out of the GonnaOrder error envelope so per-row errors in the UI are readable. Documented in CLAUDE.md API gotchas.

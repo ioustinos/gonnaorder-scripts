@@ -81,15 +81,21 @@ async function createVoucher(jwt, storeId, row) {
   const sixMonthsLater = new Date(now);
   sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
 
+  const discountType = row.discountType || "PERCENTILE";
+  const discount = Number(row.discount);
+
   const payload = {
     code: String(row.code),
     startDate: row.startDate ? toIso(row.startDate) : now.toISOString(),
     endDate: row.endDate ? toIso(row.endDate) : sixMonthsLater.toISOString(),
-    discount: Number(row.discount),
+    discount,
     orderMinAmount: Number(row.orderMinAmount) || 0,
-    initialValue: null,
+    // For FIXED-amount vouchers, the API expects the monetary worth of the voucher
+    // in initialValue. For PERCENTILE vouchers it stays null. (Discovered the hard
+    // way — the n8n flow only ever did PERCENTILE, so it always sent null.)
+    initialValue: discountType === "FIXED" ? discount : null,
     type: row.type || "MULTI_USE",
-    discountType: row.discountType || "PERCENTILE",
+    discountType,
     isActive: row.isActive === false ? false : true,
     categoryIds: null,
     scheduleId: "null",
@@ -107,7 +113,13 @@ async function createVoucher(jwt, storeId, row) {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+    // Try to pull a friendlier message out of the GonnaOrder error envelope.
+    let detail = text.slice(0, 300);
+    try {
+      const parsed = JSON.parse(text);
+      detail = parsed.detail || parsed.message || parsed.error || detail;
+    } catch {}
+    throw new Error(`HTTP ${res.status}: ${detail}`);
   }
   // Some endpoints return 204; others return the created object.
   if (res.status === 204) return {};

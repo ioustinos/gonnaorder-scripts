@@ -78,6 +78,12 @@ server-side secrets (Sentry DSN, etc.), they go here.
   - `scheduleId: "null"` — yes, the **string** `"null"`. That's what the n8n
     flow sends and what works.
   - Dates are full ISO strings.
+  - `initialValue`: must be the **monetary worth of the voucher when
+    `discountType === "FIXED"`** (so for a €5-off fixed voucher, set it to
+    `5`). For `PERCENTILE` vouchers leave it `null`. Sending `null` for a
+    FIXED voucher returns the generic `400 "Failed to read request"` — not
+    a friendly validation error, just a deserialization failure. Caught
+    during the first e2e test on 2026-05-28 (GO-3) with WELCOME5.
 
 ## How to add a new script
 
