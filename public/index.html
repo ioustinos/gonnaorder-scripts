@@ -100,12 +100,16 @@
             <button type="button" class="secondary">⬇ Download sample CSV</button>
           </a>
         </div>
+        <div style="flex: 0 0 auto;">
+          <button type="button" class="secondary" id="inspectBtn">🔍 Inspect existing vouchers</button>
+        </div>
       </div>
       <div class="help" style="margin-top: 12px;">
         🔒 Credentials are sent over HTTPS to our serverless function, which uses them
         once to get a session token from GonnaOrder. They are not stored on the server.
         Your email is remembered in this browser for next time; your password is not.
       </div>
+      <pre id="inspectOut" style="display:none; margin-top:12px; padding:12px; background:var(--panel-2); border:1px solid var(--border); border-radius:8px; overflow:auto; max-height:320px; font-size:11px; color:var(--text); white-space:pre-wrap; word-break:break-word;"></pre>
     </div>
 
     <div class="panel">
@@ -290,6 +294,45 @@
         tr.children[tr.children.length - 1].innerHTML = `<span class="err-msg">${(parsedRows[i]._errors || []).join('; ')}</span>`;
       }
     }
+
+    // Inspect button — GETs the first 20 existing vouchers so we can see real discountType / type values
+    document.getElementById('inspectBtn').addEventListener('click', async () => {
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value;
+      const storeId = storeIdInput.value.trim();
+      if (!username || !password || !storeId) { alert('Enter email, password, and Store ID first.'); return; }
+      try { localStorage.setItem(REMEMBER_KEY, username); } catch {}
+      const out = document.getElementById('inspectOut');
+      out.style.display = '';
+      out.textContent = 'Fetching…';
+      try {
+        const res = await fetch('/api/list-vouchers', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ username, password, storeId: Number(storeId), size: 20 }),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+        // Summarize the unique discountType / type values so the answer pops out.
+        const types = new Set(), discountTypes = new Set();
+        body.vouchers.forEach(v => { if (v.type) types.add(v.type); if (v.discountType) discountTypes.add(v.discountType); });
+        const summary =
+          `Total vouchers fetched: ${body.count}\n` +
+          `Unique discountType values: ${[...discountTypes].join(', ') || '(none)'}\n` +
+          `Unique type values:         ${[...types].join(', ') || '(none)'}\n\n` +
+          `Sample (first 3 vouchers, trimmed):\n` +
+          JSON.stringify(
+            body.vouchers.slice(0, 3).map(v => ({
+              code: v.code, discount: v.discount, discountType: v.discountType,
+              type: v.type, initialValue: v.initialValue, isActive: v.isActive,
+            })),
+            null, 2
+          );
+        out.textContent = summary;
+      } catch (e) {
+        out.textContent = 'Error: ' + e.message;
+      }
+    });
 
     importBtn.addEventListener('click', async () => {
       const username = usernameInput.value.trim();

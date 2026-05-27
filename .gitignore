@@ -5,3 +5,7 @@ node_modules/
 .DS_Store
 dist/
 *.log
+
+# Local-only working files (not part of the deployable app)
+_skill_update/
+deploy-*.zip

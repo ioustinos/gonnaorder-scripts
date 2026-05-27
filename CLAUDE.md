@@ -74,6 +74,13 @@ server-side secrets (Sentry DSN, etc.), they go here.
   shown in `netlify/functions/create-vouchers.js`. Fields worth knowing:
   - `discountType: "PERCENTILE" | "FIXED"` — note **PERCENTILE**, not
     PERCENTAGE. The UI says "Percentage" but the API uses "PERCENTILE".
+    The monetary value is currently coded as `"FIXED"` — this was a guess
+    based on common API conventions. The UI label is "Monetary", so it
+    may need to be `"MONETARY"` instead. **To verify:** use the page's
+    "🔍 Inspect existing vouchers" button against a store that already has
+    a monetary voucher and look at the returned `discountType`. If it's
+    `"MONETARY"`, change the constant in `netlify/functions/create-vouchers.js`
+    (search for `FIXED`) and update this note.
   - `type: "MULTI_USE" | "SINGLE_USE"`
   - `scheduleId: "null"` — yes, the **string** `"null"`. That's what the n8n
     flow sends and what works.
