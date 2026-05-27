@@ -91,11 +91,29 @@ server-side secrets (Sentry DSN, etc.), they go here.
     deserializer rejects unknown enum values with that opaque message
     instead of a field-level error.
 
+## Page layout
+
+```
+public/
+  index.html             ← home: card grid linking to each script
+  vouchers/
+    index.html           ← Voucher Importer
+  sample-vouchers.csv    ← shared starter, kept at root so it's /sample-vouchers.csv
+```
+
+Each script lives in its own `public/<slug>/` folder so the URL is just
+`/<slug>/`. The home page is a static card grid (no JS) — adding a new
+script means swapping one `<div class="card soon">` placeholder for an
+`<a class="card live" href="/<slug>/">`.
+
 ## How to add a new script
 
-1. Create `public/<script-slug>.html` (copy index.html's structure).
-2. Create `netlify/functions/<script-slug>.js`.
-3. Link to it from `public/index.html` (a small home page if there are many).
+1. Create `public/<slug>/index.html` (copy `public/vouchers/index.html`'s
+   structure — the dark theme, the "← All scripts" nav link, the panels).
+2. Create one or more `netlify/functions/<slug>-*.js` files for the API calls.
+3. In `public/index.html`, replace one of the "Coming soon" cards (or add a
+   new card) pointing at `/<slug>/`. Bump from `class="card soon"` to
+   `class="card live"` and from `<div>` to `<a href="/<slug>/">`.
 4. Add a Linear issue under project "GonnaOrder Scripts" describing the script.
 5. Commit + push to `main`. Netlify deploys automatically.
 

@@ -10,7 +10,13 @@ Functions, where credentials live as env vars.
 
 ## Currently shipping
 
-### Voucher Importer (`/`)
+### Home (`/`)
+
+Card-based hub listing every script in the repo. Each script lives at its
+own URL (`/vouchers/`, `/products/`, etc.) and links back to the hub via
+a "← All scripts" link.
+
+### Voucher Importer (`/vouchers/`)
 
 Bulk-create customer vouchers in a GonnaOrder store from a CSV or Excel file.
 
@@ -38,13 +44,21 @@ CSV columns:
 
 ```
 public/
-  index.html          ← single-page UI (parses CSV/XLSX with SheetJS in-browser)
-  sample-vouchers.csv ← downloadable starter file
+  index.html             ← home: card grid linking to each script
+  vouchers/
+    index.html           ← Voucher Importer (drag/drop + per-row preview)
+  sample-vouchers.csv    ← shared starter file (kept at root so it's /sample-vouchers.csv)
 netlify/
   functions/
-    create-vouchers.js ← auths with GonnaOrder, loops over rows, returns results
-netlify.toml          ← publish dir + /api/* → functions rewrite
+    create-vouchers.js   ← POST: auths with GonnaOrder, loops over rows
+    list-vouchers.js     ← POST: GETs existing vouchers (used by the Inspect button)
+netlify.toml             ← publish dir + /api/* → functions rewrite
 ```
+
+**Adding a new script:** create `public/<slug>/index.html`, add one or more
+matching functions under `netlify/functions/`, then add a new card to the
+home page in `public/index.html` (change the `class="card soon"` placeholder
+to `class="card live"` with the right `href`).
 
 ## Conventions
 

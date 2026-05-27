@@ -21,6 +21,10 @@ First script: bulk voucher importer.
 - `discountType` is **`PERCENTILE`** in the API even though the UI shows "Percentage". Both `PERCENTAGE` and `%` are accepted in the CSV and normalized.
 - `scheduleId` is the **string** `"null"`, not actual null. Carried over verbatim from the n8n flow because it's what works.
 
+### Home page + folder-per-script layout
+
+Restructured so `/` is now a card-grid hub and the voucher importer moved to `/vouchers/`. Each future script gets its own `public/<slug>/index.html`. The home page is plain static HTML — adding a script swaps one "Coming soon" placeholder card for a live link. Backlog scripts (cleanup, categories, products, store-config-copy) are seeded as `soon` cards so the user can see what's planned. Fixed a stale footer line on the importer that still mentioned "creds in Netlify env vars" — they live in the form now.
+
 ### Credentials handling (revised, pre-deploy)
 
 Initial design stored `GONNAORDER_USERNAME` and `GONNAORDER_PASSWORD` as Netlify env vars sourced from the n8n flow — Ioustinos pointed out this hardcodes the tool to his account. Switched to per-request credentials in the body: user types email + password in the UI, function uses them once, discards them. Browser remembers only the email in `localStorage`.

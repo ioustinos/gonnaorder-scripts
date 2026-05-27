@@ -3,9 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>GonnaOrder Scripts — Voucher Importer</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%AB%3C/text%3E%3C/svg%3E" />
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <title>GonnaOrder Scripts</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%99%EF%B8%8F%3C/text%3E%3C/svg%3E" />
   <style>
     :root {
       --bg: #0f1115;
@@ -16,400 +15,105 @@
       --muted: #9aa0a6;
       --accent: #4f8cff;
       --ok: #34c759;
-      --err: #ff453a;
-      --warn: #ffb020;
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    .wrap { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
-    header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
-    h1 { font-size: 22px; margin: 0; font-weight: 600; }
-    .tag { color: var(--muted); font-size: 13px; }
-    p.lead { color: var(--muted); margin: 4px 0 28px; }
-    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
-    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
-    input[type=text], input[type=number] {
-      width: 100%; background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
-      padding: 10px 12px; border-radius: 8px; font: inherit; outline: none;
+    .wrap { max-width: 920px; margin: 0 auto; padding: 48px 20px 80px; }
+    .brand { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+    h1 { font-size: 28px; margin: 0 0 8px; font-weight: 600; }
+    p.lead { color: var(--muted); margin: 0 0 36px; font-size: 15px; max-width: 600px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
     }
-    input[type=text]:focus, input[type=number]:focus { border-color: var(--accent); }
-    .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
-    .row > div { flex: 1 1 200px; }
-    button {
-      background: var(--accent); color: white; border: 0; padding: 10px 16px;
-      border-radius: 8px; font: inherit; font-weight: 500; cursor: pointer;
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      text-decoration: none;
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: border-color 0.15s, transform 0.15s, background 0.15s;
+      position: relative;
+      min-height: 160px;
     }
-    button:hover { filter: brightness(1.1); }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    button.secondary { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); }
-    .drop {
-      border: 2px dashed var(--border); border-radius: 10px; padding: 28px; text-align: center;
-      color: var(--muted); cursor: pointer; transition: all 0.15s;
+    .card.live:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+      background: #1d2129;
     }
-    .drop.hover { border-color: var(--accent); background: rgba(79, 140, 255, 0.06); color: var(--text); }
-    .drop input { display: none; }
-    .drop .file { color: var(--text); }
-    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
-    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
-    th { color: var(--muted); font-weight: 500; background: var(--panel-2); position: sticky; top: 0; }
-    .preview-scroll { max-height: 360px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; }
+    .card.soon {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+    .card-icon { font-size: 28px; line-height: 1; margin-bottom: 4px; }
+    .card-title { font-size: 16px; font-weight: 600; margin: 0; }
+    .card-desc { font-size: 13px; color: var(--muted); margin: 0; flex: 1; }
+    .badge {
+      position: absolute; top: 16px; right: 16px;
+      display: inline-block; padding: 3px 8px; border-radius: 999px;
+      font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+    }
     .badge.ok { background: rgba(52, 199, 89, 0.15); color: var(--ok); }
-    .badge.err { background: rgba(255, 69, 58, 0.15); color: var(--err); }
-    .badge.warn { background: rgba(255, 176, 32, 0.15); color: var(--warn); }
     .badge.idle { background: var(--panel-2); color: var(--muted); }
-    .progress { height: 4px; background: var(--panel-2); border-radius: 999px; overflow: hidden; margin-top: 16px; }
-    .progress .bar { height: 100%; background: var(--accent); width: 0; transition: width 0.2s; }
-    .summary { display: flex; gap: 12px; margin-top: 12px; }
-    .summary > div { background: var(--panel-2); padding: 10px 14px; border-radius: 8px; font-size: 13px; }
-    .summary .n { font-weight: 600; font-size: 16px; color: var(--text); }
-    .err-msg { color: var(--err); font-size: 12px; }
-    a { color: var(--accent); }
-    .footer { color: var(--muted); font-size: 12px; margin-top: 32px; text-align: center; }
-    code { background: var(--panel-2); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
-    .help { color: var(--muted); font-size: 12px; margin-top: 6px; }
+    .footer { color: var(--muted); font-size: 12px; margin-top: 48px; text-align: center; }
+    .footer a { color: var(--muted); }
+    .footer a:hover { color: var(--accent); }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <header>
-      <h1>🎫 Voucher Importer</h1>
-      <span class="tag">GonnaOrder Scripts</span>
-    </header>
-    <p class="lead">Bulk-create vouchers in a GonnaOrder store from a CSV or Excel file.</p>
+    <div class="brand">⚙️ GonnaOrder Scripts</div>
+    <h1>One-page tools for things the GonnaOrder admin doesn't do in bulk.</h1>
+    <p class="lead">
+      Each script is its own page. Bring your GonnaOrder admin login and a store ID;
+      the rest is uploads, previews, and per-row results.
+    </p>
 
-    <div class="panel">
-      <div class="row" style="margin-bottom: 14px;">
-        <div>
-          <label for="username">GonnaOrder email</label>
-          <input type="text" id="username" autocomplete="username" placeholder="you@yourdomain.com" />
-        </div>
-        <div>
-          <label for="password">GonnaOrder password</label>
-          <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" />
-        </div>
-      </div>
-      <div class="row">
-        <div style="flex: 0 0 220px;">
-          <label for="storeId">Store ID</label>
-          <input type="number" id="storeId" placeholder="e.g. 6423" min="1" />
-          <div class="help">The numeric ID from <code>admin.gonnaorder.com</code>.</div>
-        </div>
-        <div style="flex: 0 0 auto;">
-          <a href="/sample-vouchers.csv" download>
-            <button type="button" class="secondary">⬇ Download sample CSV</button>
-          </a>
-        </div>
-        <div style="flex: 0 0 auto;">
-          <button type="button" class="secondary" id="inspectBtn">🔍 Inspect existing vouchers</button>
-        </div>
-      </div>
-      <div class="help" style="margin-top: 12px;">
-        🔒 Credentials are sent over HTTPS to our serverless function, which uses them
-        once to get a session token from GonnaOrder. They are not stored on the server.
-        Your email is remembered in this browser for next time; your password is not.
-      </div>
-      <pre id="inspectOut" style="display:none; margin-top:12px; padding:12px; background:var(--panel-2); border:1px solid var(--border); border-radius:8px; overflow:auto; max-height:320px; font-size:11px; color:var(--text); white-space:pre-wrap; word-break:break-word;"></pre>
-    </div>
+    <div class="grid">
+      <a class="card live" href="/vouchers/">
+        <span class="badge ok">Live</span>
+        <div class="card-icon">🎫</div>
+        <h2 class="card-title">Voucher Importer</h2>
+        <p class="card-desc">Bulk-create vouchers in a store from a CSV or Excel file. Supports MONETARY and PERCENTILE, MULTI_USE and ONE_TIME_USE.</p>
+      </a>
 
-    <div class="panel">
-      <label>Voucher file (CSV or Excel)</label>
-      <label class="drop" id="drop">
-        <input type="file" id="file" accept=".csv,.xlsx,.xls" />
-        <div id="dropText">Drop a CSV or Excel file here, or click to choose.</div>
-      </label>
-      <div class="help">Columns: <code>code</code>, <code>discount</code>, <code>discountType</code> (<code>PERCENTILE</code> or <code>MONETARY</code>), <code>type</code> (<code>MULTI_USE</code> or <code>ONE_TIME_USE</code>), <code>orderMinAmount</code>, <code>startDate</code>, <code>endDate</code>, <code>isActive</code>, <code>externalId</code>. Only <code>code</code> and <code>discount</code> are required.</div>
-    </div>
+      <div class="card soon" aria-disabled="true">
+        <span class="badge idle">Coming soon</span>
+        <div class="card-icon">🧹</div>
+        <h2 class="card-title">Voucher Cleanup</h2>
+        <p class="card-desc">List and deactivate expired vouchers in bulk across one or more stores.</p>
+      </div>
 
-    <div class="panel" id="previewPanel" style="display:none;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <strong id="previewTitle">Preview</strong>
-        <button type="button" id="importBtn">Import vouchers</button>
+      <div class="card soon" aria-disabled="true">
+        <span class="badge idle">Coming soon</span>
+        <div class="card-icon">📁</div>
+        <h2 class="card-title">Category Manager</h2>
+        <p class="card-desc">Bulk create, rename, or re-order menu categories from a spreadsheet.</p>
       </div>
-      <div class="preview-scroll">
-        <table id="previewTable"></table>
+
+      <div class="card soon" aria-disabled="true">
+        <span class="badge idle">Coming soon</span>
+        <div class="card-icon">🛒</div>
+        <h2 class="card-title">Product Importer</h2>
+        <p class="card-desc">Update prices and availability for many products at once.</p>
       </div>
-      <div class="progress" id="progressBar" style="display:none;"><div class="bar" id="progressFill"></div></div>
-      <div class="summary" id="summary" style="display:none;">
-        <div>Total: <span class="n" id="sumTotal">0</span></div>
-        <div>Created: <span class="n" id="sumOk" style="color:var(--ok);">0</span></div>
-        <div>Failed: <span class="n" id="sumErr" style="color:var(--err);">0</span></div>
+
+      <div class="card soon" aria-disabled="true">
+        <span class="badge idle">Coming soon</span>
+        <div class="card-icon">📋</div>
+        <h2 class="card-title">Store Config Copy</h2>
+        <p class="card-desc">Replicate settings between two stores in one click.</p>
       </div>
     </div>
 
     <div class="footer">
-      Calls <code>/.netlify/functions/create-vouchers</code> · creds in Netlify env vars · source: <a href="https://github.com/ioustinos/gonnaorder-scripts" target="_blank" rel="noreferrer">github.com/ioustinos/gonnaorder-scripts</a>
+      Source: <a href="https://github.com/ioustinos/gonnaorder-scripts" target="_blank" rel="noreferrer">github.com/ioustinos/gonnaorder-scripts</a>
     </div>
   </div>
-
-  <script>
-    const drop = document.getElementById('drop');
-    const fileInput = document.getElementById('file');
-    const dropText = document.getElementById('dropText');
-    const previewPanel = document.getElementById('previewPanel');
-    const previewTable = document.getElementById('previewTable');
-    const previewTitle = document.getElementById('previewTitle');
-    const importBtn = document.getElementById('importBtn');
-    const storeIdInput = document.getElementById('storeId');
-    const usernameInput = document.getElementById('username');
-    const passwordInput = document.getElementById('password');
-    const progressBar = document.getElementById('progressBar');
-    const progressFill = document.getElementById('progressFill');
-    const summaryEl = document.getElementById('summary');
-    const sumTotal = document.getElementById('sumTotal');
-    const sumOk = document.getElementById('sumOk');
-    const sumErr = document.getElementById('sumErr');
-
-    // Remember username (only) across sessions so the user just types their password each time.
-    const REMEMBER_KEY = 'gonnaorder.username';
-    try {
-      const saved = localStorage.getItem(REMEMBER_KEY);
-      if (saved) usernameInput.value = saved;
-    } catch {}
-    usernameInput.addEventListener('change', () => {
-      try { localStorage.setItem(REMEMBER_KEY, usernameInput.value.trim()); } catch {}
-    });
-
-    let parsedRows = [];
-
-    // Drag-and-drop
-    ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
-    ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
-    drop.addEventListener('drop', e => {
-      const f = e.dataTransfer.files[0];
-      if (f) handleFile(f);
-    });
-    fileInput.addEventListener('change', e => {
-      const f = e.target.files[0];
-      if (f) handleFile(f);
-    });
-
-    function handleFile(file) {
-      dropText.innerHTML = `<span class="file">📄 ${file.name}</span> · ${(file.size / 1024).toFixed(1)} KB`;
-      const reader = new FileReader();
-      reader.onload = e => {
-        try {
-          const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const sheet = workbook.Sheets[workbook.SheetNames[0]];
-          const rows = XLSX.utils.sheet_to_json(sheet, { raw: false, defval: '' });
-          parsedRows = rows.map((r, i) => normalizeRow(r, i + 2)); // +2: 1-indexed + header row
-          renderPreview();
-        } catch (err) {
-          alert('Could not parse file: ' + err.message);
-        }
-      };
-      reader.readAsArrayBuffer(file);
-    }
-
-    // Normalize a row to the API shape, with validation.
-    function normalizeRow(raw, lineNumber) {
-      const r = {};
-      // case-insensitive key lookup
-      const get = name => {
-        const key = Object.keys(raw).find(k => k.trim().toLowerCase() === name.toLowerCase());
-        return key ? String(raw[key]).trim() : '';
-      };
-      r.code = get('code');
-      r.discount = get('discount');
-      r.discountType = (get('discountType') || 'PERCENTILE').toUpperCase();
-      // Allow common aliases — the API uses PERCENTILE / MONETARY (not PERCENTAGE / FIXED)
-      if (['PERCENTAGE', '%', 'PERCENT'].includes(r.discountType)) r.discountType = 'PERCENTILE';
-      if (['FIXED', 'EUR', '€', 'AMOUNT', 'MONEY'].includes(r.discountType)) r.discountType = 'MONETARY';
-      r.type = (get('type') || 'MULTI_USE').toUpperCase().replace(/[\s-]/g, '_');
-      // API uses MULTI_USE / ONE_TIME_USE — accept various aliases
-      if (['SINGLE', 'SINGLEUSE', 'SINGLE_USE', 'ONETIME', 'ONETIMEUSE', 'ONE_TIME'].includes(r.type)) r.type = 'ONE_TIME_USE';
-      if (['MULTI', 'MULTIUSE'].includes(r.type)) r.type = 'MULTI_USE';
-      r.orderMinAmount = get('orderMinAmount') || '0';
-      r.startDate = get('startDate');
-      r.endDate = get('endDate');
-      const active = (get('isActive') || 'true').toLowerCase();
-      r.isActive = !(active === 'false' || active === 'no' || active === '0');
-      r.externalId = get('externalId') || null;
-
-      // Validate
-      const errors = [];
-      if (!r.code) errors.push('code is required');
-      if (!r.discount || isNaN(Number(r.discount))) errors.push('discount must be a number');
-      if (!['PERCENTILE', 'MONETARY'].includes(r.discountType)) errors.push('discountType must be PERCENTILE or MONETARY');
-      if (!['MULTI_USE', 'ONE_TIME_USE'].includes(r.type)) errors.push('type must be MULTI_USE or ONE_TIME_USE');
-      if (r.discountType === 'PERCENTILE' && (Number(r.discount) <= 0 || Number(r.discount) > 100)) {
-        errors.push('percentage discount must be between 1 and 100');
-      }
-      r._errors = errors;
-      r._line = lineNumber;
-      r._status = errors.length ? 'invalid' : 'pending';
-      return r;
-    }
-
-    function renderPreview() {
-      if (!parsedRows.length) {
-        previewPanel.style.display = 'none';
-        return;
-      }
-      previewPanel.style.display = '';
-      previewTitle.textContent = `Preview · ${parsedRows.length} row${parsedRows.length === 1 ? '' : 's'}`;
-      summaryEl.style.display = 'none';
-      progressBar.style.display = 'none';
-      progressFill.style.width = '0%';
-
-      const cols = ['_status', 'code', 'discount', 'discountType', 'type', 'orderMinAmount', 'startDate', 'endDate', 'isActive', 'externalId', '_errors'];
-      const headers = cols.map(c => c === '_status' ? 'Status' : c === '_errors' ? 'Notes' : c);
-      let html = '<thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
-      parsedRows.forEach((r, i) => {
-        html += `<tr data-row="${i}">` + cols.map(c => {
-          if (c === '_status') return `<td>${statusBadge(r._status)}</td>`;
-          if (c === '_errors') return `<td><span class="err-msg">${(r._errors || []).join('; ') || ''}</span></td>`;
-          return `<td>${r[c] === null || r[c] === undefined ? '' : escapeHtml(String(r[c]))}</td>`;
-        }).join('') + '</tr>';
-      });
-      html += '</tbody>';
-      previewTable.innerHTML = html;
-
-      const validCount = parsedRows.filter(r => r._status !== 'invalid').length;
-      importBtn.disabled = validCount === 0;
-      importBtn.textContent = `Import ${validCount} voucher${validCount === 1 ? '' : 's'}`;
-    }
-
-    function statusBadge(s) {
-      const map = {
-        pending: '<span class="badge idle">pending</span>',
-        invalid: '<span class="badge err">invalid</span>',
-        importing: '<span class="badge warn">importing…</span>',
-        created: '<span class="badge ok">created</span>',
-        failed: '<span class="badge err">failed</span>',
-      };
-      return map[s] || s;
-    }
-
-    function escapeHtml(s) {
-      return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    }
-
-    function updateRowStatus(i, status, error) {
-      parsedRows[i]._status = status;
-      if (error) parsedRows[i]._errors = [error];
-      const tr = previewTable.querySelector(`tr[data-row="${i}"]`);
-      if (tr) {
-        tr.children[0].innerHTML = statusBadge(status);
-        tr.children[tr.children.length - 1].innerHTML = `<span class="err-msg">${(parsedRows[i]._errors || []).join('; ')}</span>`;
-      }
-    }
-
-    // Inspect button — GETs the first 20 existing vouchers so we can see real discountType / type values
-    document.getElementById('inspectBtn').addEventListener('click', async () => {
-      const username = usernameInput.value.trim();
-      const password = passwordInput.value;
-      const storeId = storeIdInput.value.trim();
-      if (!username || !password || !storeId) { alert('Enter email, password, and Store ID first.'); return; }
-      try { localStorage.setItem(REMEMBER_KEY, username); } catch {}
-      const out = document.getElementById('inspectOut');
-      out.style.display = '';
-      out.textContent = 'Fetching…';
-      try {
-        const res = await fetch('/api/list-vouchers', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ username, password, storeId: Number(storeId), size: 20 }),
-        });
-        const body = await res.json();
-        if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
-        // Summarize the unique discountType / type values so the answer pops out.
-        const types = new Set(), discountTypes = new Set();
-        body.vouchers.forEach(v => { if (v.type) types.add(v.type); if (v.discountType) discountTypes.add(v.discountType); });
-        const summary =
-          `Total vouchers fetched: ${body.count}\n` +
-          `Unique discountType values: ${[...discountTypes].join(', ') || '(none)'}\n` +
-          `Unique type values:         ${[...types].join(', ') || '(none)'}\n\n` +
-          `Sample (first 3 vouchers, trimmed):\n` +
-          JSON.stringify(
-            body.vouchers.slice(0, 3).map(v => ({
-              code: v.code, discount: v.discount, discountType: v.discountType,
-              type: v.type, initialValue: v.initialValue, isActive: v.isActive,
-            })),
-            null, 2
-          );
-        out.textContent = summary;
-      } catch (e) {
-        out.textContent = 'Error: ' + e.message;
-      }
-    });
-
-    importBtn.addEventListener('click', async () => {
-      const username = usernameInput.value.trim();
-      const password = passwordInput.value;
-      const storeId = storeIdInput.value.trim();
-      if (!username) { alert('Enter your GonnaOrder email first.'); usernameInput.focus(); return; }
-      if (!password) { alert('Enter your GonnaOrder password first.'); passwordInput.focus(); return; }
-      if (!storeId) { alert('Enter a Store ID first.'); storeIdInput.focus(); return; }
-
-      // Save the username (not the password) for next time.
-      try { localStorage.setItem(REMEMBER_KEY, username); } catch {}
-
-      const valid = parsedRows.filter(r => r._status !== 'invalid');
-      if (!valid.length) return;
-
-      importBtn.disabled = true;
-      progressBar.style.display = '';
-      summaryEl.style.display = '';
-      let ok = 0, err = 0;
-      sumTotal.textContent = valid.length;
-      sumOk.textContent = '0';
-      sumErr.textContent = '0';
-
-      // Mark all valid rows as importing
-      parsedRows.forEach((r, i) => {
-        if (r._status !== 'invalid') updateRowStatus(i, 'importing');
-      });
-
-      try {
-        const res = await fetch('/api/create-vouchers', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            username,
-            password,
-            storeId: Number(storeId),
-            rows: valid.map(r => ({
-              code: r.code,
-              discount: Number(r.discount),
-              discountType: r.discountType,
-              type: r.type,
-              orderMinAmount: Number(r.orderMinAmount) || 0,
-              startDate: r.startDate || null,
-              endDate: r.endDate || null,
-              isActive: r.isActive,
-              externalId: r.externalId || null,
-            })),
-          }),
-        });
-        const body = await res.json();
-        if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
-
-        // body.results matches valid order
-        body.results.forEach((result, vi) => {
-          const idx = parsedRows.findIndex(r => r === valid[vi]);
-          if (result.ok) {
-            updateRowStatus(idx, 'created', '');
-            parsedRows[idx]._errors = [];
-            ok++;
-          } else {
-            updateRowStatus(idx, 'failed', result.error || 'unknown error');
-            err++;
-          }
-          progressFill.style.width = `${Math.round(((vi + 1) / valid.length) * 100)}%`;
-          sumOk.textContent = ok;
-          sumErr.textContent = err;
-        });
-      } catch (e) {
-        alert('Import failed: ' + e.message);
-        parsedRows.forEach((r, i) => {
-          if (r._status === 'importing') updateRowStatus(i, 'failed', e.message);
-        });
-      } finally {
-        importBtn.disabled = false;
-      }
-    });
-  </script>
 </body>
 </html>
