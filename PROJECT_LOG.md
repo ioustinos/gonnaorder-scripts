@@ -21,6 +21,15 @@ First script: bulk voucher importer.
 - `discountType` is **`PERCENTILE`** in the API even though the UI shows "Percentage". Both `PERCENTAGE` and `%` are accepted in the CSV and normalized.
 - `scheduleId` is the **string** `"null"`, not actual null. Carried over verbatim from the n8n flow because it's what works.
 
+### Catalogue Editor shipped (second script)
+
+Ioustinos uploaded three files (a prompt + a Netlify function + a React component) and went to sleep. Built the catalogue editor as the second live script in the repo.
+
+- Function ported as-is to `netlify/functions/catalog-editor.js` (CommonJS → ESM, matched our other functions' style; removed CORS headers since same-origin). Three modes: `catalogue` (auth + return all offers), `apply-one` (parent override + cascade to variants), `inspect` (debug). API logic kept 100% identical to the uploaded reference.
+- Frontend ported from the React + Tailwind component to vanilla JS at `public/catalogue/index.html`, matching the existing dark theme. Every feature preserved: email/password/storeId auth, Load Catalogue, client-side category filter (built from the loaded data), per-row price/discount/visibility editing, expandable variants with inherited discount, bulk discount/show/hide on selected rows, Apply Log with collapsible payload/response per step, failed-offer-IDs collector, dirty-row highlighting.
+- New live card on the home page, sitting next to the Voucher Importer. CLAUDE.md got a new "Catalogue API notes" section documenting the override-ID cascade (parent first, then variants anchored to the returned `childOfferId`) — that's the non-obvious bit that breaks silently if you reorder.
+- Edits in the table use input-level state updates that don't trigger full re-renders, so typing in a price/discount input doesn't blow away focus. Visibility toggles still trigger an immediate apply + re-render.
+
 ### Home page + folder-per-script layout
 
 Restructured so `/` is now a card-grid hub and the voucher importer moved to `/vouchers/`. Each future script gets its own `public/<slug>/index.html`. The home page is plain static HTML — adding a script swaps one "Coming soon" placeholder card for a live link. Backlog scripts (cleanup, categories, products, store-config-copy) are seeded as `soon` cards so the user can see what's planned. Fixed a stale footer line on the importer that still mentioned "creds in Netlify env vars" — they live in the form now.

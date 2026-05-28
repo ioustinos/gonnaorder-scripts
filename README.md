@@ -26,6 +26,22 @@ Bulk-create customer vouchers in a GonnaOrder store from a CSV or Excel file.
 4. Drop the file — rows are validated client-side
 5. Click "Import" — per-row results show inline
 
+### Catalogue Editor (`/catalogue/`)
+
+Load a clone store's full catalogue and edit price, discount %, and
+visibility per item (or in bulk across the selected rows).
+
+1. Enter email + password + the clone store ID, click **Load Catalogue**
+2. Filter by category (dropdown is built from the loaded catalogue, no extra API call)
+3. Edit a row's price/discount inline — click **Apply** to push that one item
+4. Or expand the row to edit variant prices and visibility individually
+5. Select multiple rows → bulk-apply discount, or bulk show/hide
+6. Every API call lands in the **Apply Log** at the bottom with collapsible payload/response
+
+The visibility toggle applies immediately (no Apply click needed). Variant
+discounts inherit the parent's. The token from Load Catalogue is reused for
+every Apply in that session — if it expires, hit Load again.
+
 CSV columns:
 
 | column | required | default | accepts |
@@ -47,11 +63,14 @@ public/
   index.html             ← home: card grid linking to each script
   vouchers/
     index.html           ← Voucher Importer (drag/drop + per-row preview)
+  catalogue/
+    index.html           ← Catalogue Editor (load store, edit, apply per-row or bulk)
   sample-vouchers.csv    ← shared starter file (kept at root so it's /sample-vouchers.csv)
 netlify/
   functions/
     create-vouchers.js   ← POST: auths with GonnaOrder, loops over rows
     list-vouchers.js     ← POST: GETs existing vouchers (used by the Inspect button)
+    catalog-editor.js    ← POST: catalogue / apply-one / inspect modes
 netlify.toml             ← publish dir + /api/* → functions rewrite
 ```
 

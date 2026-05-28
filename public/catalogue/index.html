@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Catalogue Editor · GonnaOrder Scripts</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%8B%3C/text%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #1a1d24;
+      --panel-2: #232730;
+      --border: #2e333d;
+      --text: #e8eaed;
+      --muted: #9aa0a6;
+      --accent: #4f8cff;
+      --ok: #34c759;
+      --err: #ff453a;
+      --warn: #ffb020;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 32px 20px 80px; }
+    .nav { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+    .nav a { color: var(--muted); text-decoration: none; }
+    .nav a:hover { color: var(--accent); }
+    header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+    h1 { font-size: 22px; margin: 0; font-weight: 600; }
+    .tag { color: var(--muted); font-size: 13px; }
+    p.lead { color: var(--muted); margin: 4px 0 28px; }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+    .panel-tight { padding: 0; overflow: hidden; }
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+    input[type=text], input[type=number], input[type=email], input[type=password] {
+      width: 100%; background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+      padding: 10px 12px; border-radius: 8px; font: inherit; outline: none;
+    }
+    input:focus { border-color: var(--accent); }
+    select {
+      background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+      padding: 8px 12px; border-radius: 8px; font: inherit; outline: none; cursor: pointer;
+    }
+    select:focus { border-color: var(--accent); }
+    .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+    .row > div { flex: 1 1 180px; }
+    button {
+      background: var(--accent); color: white; border: 0; padding: 10px 16px;
+      border-radius: 8px; font: inherit; font-weight: 500; cursor: pointer; white-space: nowrap;
+    }
+    button:hover:not(:disabled) { filter: brightness(1.1); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.secondary { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); }
+    button.amber  { background: var(--warn); color: #1a1300; }
+    button.green  { background: var(--ok); }
+    button.muted  { background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); }
+    button.small  { padding: 6px 10px; font-size: 12px; }
+    .help { color: var(--muted); font-size: 12px; margin-top: 6px; }
+    a { color: var(--accent); }
+    code { background: var(--panel-2); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+    .footer { color: var(--muted); font-size: 12px; margin-top: 32px; text-align: center; }
+    .err-banner { color: var(--err); background: rgba(255, 69, 58, 0.08); border: 1px solid rgba(255, 69, 58, 0.3); border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-top: 12px; }
+
+    /* Info bar */
+    .info-bar { padding: 12px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); background: rgba(255,255,255,0.01); }
+
+    /* Bulk action bar */
+    .bulk-bar { padding: 12px 18px; border-bottom: 1px solid var(--border); background: rgba(79, 140, 255, 0.06); display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .bulk-bar .count { color: var(--accent); font-weight: 600; font-size: 13px; }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th { text-align: left; padding: 10px 12px; font-weight: 500; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.015); }
+    tbody td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tbody tr.dirty { background: rgba(255, 176, 32, 0.04); }
+    tbody tr.applying { opacity: 0.55; }
+    tbody tr.variant td { background: rgba(255,255,255,0.015); padding: 6px 12px; font-size: 12px; }
+    .col-check { width: 32px; }
+    .col-actions { width: 90px; text-align: right; }
+    .item-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .item-name .expand { width: 14px; flex-shrink: 0; color: var(--muted); cursor: pointer; font-size: 10px; text-align: center; user-select: none; }
+    .item-name .expand:hover { color: var(--text); }
+    .item-name .name { font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .item-name .name.hidden { color: var(--muted); text-decoration: line-through; }
+    .item-name .var-count { color: var(--muted); font-size: 11px; flex-shrink: 0; }
+    .item-name .dirty-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--warn); flex-shrink: 0; }
+    .variant-arrow { color: var(--muted); margin-right: 6px; }
+    .variant-name { color: var(--muted); }
+    .variant-name.hidden { text-decoration: line-through; opacity: 0.6; }
+    .variant-discount { color: var(--muted); font-style: italic; font-size: 11px; }
+
+    /* Compact inputs in table cells */
+    .cell-price, .cell-discount {
+      width: 88px; padding: 6px 8px; font-size: 12px; text-align: right;
+      background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+      border-radius: 6px;
+    }
+    .cell-price:focus, .cell-discount:focus { border-color: var(--accent); }
+    .cell-discount { width: 72px; }
+    .price-wrap, .discount-wrap { position: relative; display: inline-block; }
+    .price-wrap::before { content: '€'; position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 11px; pointer-events: none; }
+    .cell-price { padding-left: 18px; text-align: right; }
+    .discount-wrap::after { content: '%'; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 11px; pointer-events: none; }
+    .cell-discount { padding-right: 18px; }
+
+    /* Visibility toggle */
+    .vis-btn {
+      padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 600;
+      border: 1px solid var(--border); cursor: pointer; transition: all 0.15s;
+      background: var(--panel-2); color: var(--muted);
+    }
+    .vis-btn.on { background: rgba(52, 199, 89, 0.15); color: var(--ok); border-color: rgba(52, 199, 89, 0.3); }
+    .vis-btn:hover:not(:disabled) { filter: brightness(1.1); }
+    .vis-btn:disabled { opacity: 0.5; cursor: wait; }
+
+    /* Apply button per-row */
+    .apply-btn {
+      padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;
+      background: var(--accent); color: white; border: 0; cursor: pointer;
+    }
+    .apply-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .apply-btn.applied { background: var(--ok); }
+
+    /* Checkbox */
+    input[type=checkbox] { accent-color: var(--accent); cursor: pointer; }
+
+    /* Empty state */
+    .empty { padding: 32px; text-align: center; color: var(--muted); font-size: 13px; }
+
+    /* Apply log */
+    .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .log-header h2 { font-size: 14px; margin: 0; }
+    .log-header .counts { color: var(--muted); font-size: 12px; }
+    .log-step { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; background: var(--panel-2); font-size: 12px; }
+    .log-step.error { border-color: rgba(255, 69, 58, 0.4); }
+    .log-step.variant { margin-left: 24px; opacity: 0.9; }
+    .log-step-head { display: flex; align-items: center; gap: 8px; }
+    .log-step-num { color: var(--muted); width: 24px; text-align: right; flex-shrink: 0; }
+    .log-step-kind { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+    .log-step-kind.parent  { background: rgba(52, 199, 89, 0.15); color: var(--ok); }
+    .log-step-kind.variant { background: var(--panel); color: var(--muted); }
+    .log-step-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .log-step-status { flex-shrink: 0; font-weight: 700; }
+    .log-step-status.ok  { color: var(--ok); }
+    .log-step-status.err { color: var(--err); }
+    .log-step-error { color: var(--err); margin-top: 4px; font-size: 11px; word-break: break-word; }
+    .log-step-child { color: var(--accent); margin-top: 4px; font-size: 11px; }
+    .log-step-toggle { color: var(--muted); font-size: 11px; cursor: pointer; user-select: none; margin-top: 4px; }
+    .log-step-toggle:hover { color: var(--accent); }
+    .log-step-json {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+      padding: 8px; margin-top: 4px; font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 11px; max-height: 200px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+    }
+    .log-failed-ids { background: rgba(255, 69, 58, 0.08); border: 1px solid rgba(255, 69, 58, 0.3); border-radius: 8px; padding: 10px 12px; margin-top: 12px; font-size: 12px; }
+    .log-failed-ids strong { color: var(--err); display: block; margin-bottom: 4px; }
+    .log-failed-ids .ids { font-family: ui-monospace, SFMono-Regular, monospace; color: var(--err); user-select: all; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="nav"><a href="/">← All scripts</a></div>
+    <header>
+      <h1>📋 Catalogue Editor</h1>
+      <span class="tag">GonnaOrder Scripts</span>
+    </header>
+    <p class="lead">Load a clone store's catalogue, edit price / discount / visibility per item, then apply individually or in bulk.</p>
+
+    <!-- Auth + load controls -->
+    <div class="panel">
+      <div class="row" style="margin-bottom: 14px;">
+        <div>
+          <label for="email">GonnaOrder email</label>
+          <input type="email" id="email" autocomplete="username" placeholder="you@yourdomain.com" />
+        </div>
+        <div>
+          <label for="password">GonnaOrder password</label>
+          <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" />
+        </div>
+      </div>
+      <div class="row">
+        <div style="flex: 0 0 220px;">
+          <label for="storeId">Store ID <span style="text-transform:none; color:var(--muted); font-weight:normal;">(clone)</span></label>
+          <input type="number" id="storeId" placeholder="e.g. 716858" min="1" />
+        </div>
+        <div style="flex: 0 0 auto;">
+          <button type="button" id="loadBtn">📋 Load Catalogue</button>
+        </div>
+        <div id="categoryWrap" style="flex: 1 1 200px; display:none;">
+          <label for="categoryFilter">Category</label>
+          <select id="categoryFilter"></select>
+        </div>
+      </div>
+      <div class="help" style="margin-top: 12px;">
+        🔒 Credentials are sent over HTTPS to the serverless function, used once per
+        Load to grab a session token, then discarded. Your email is remembered in
+        this browser for next time; your password is not. If GonnaOrder starts
+        rejecting calls mid-session, hit Load again for a fresh token.
+      </div>
+      <div id="errorBanner" class="err-banner" style="display:none;"></div>
+    </div>
+
+    <!-- Catalogue table -->
+    <div class="panel panel-tight" id="cataloguePanel" style="display:none;">
+      <div class="info-bar">
+        <span id="itemCount"></span>
+        <span>token expires per session — reload if calls start failing</span>
+      </div>
+      <div class="bulk-bar" id="bulkBar" style="display:none;">
+        <span class="count" id="selectedCount"></span>
+        <div class="discount-wrap">
+          <input type="number" min="0" max="99" step="1" class="cell-discount" id="bulkDiscount" value="0" />
+        </div>
+        <button type="button" class="amber small" id="bulkApplyDiscount">Apply discount to selected</button>
+        <button type="button" class="green small" id="bulkShow">👁 Show selected</button>
+        <button type="button" class="muted small" id="bulkHide">🚫 Hide selected</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th class="col-check"><input type="checkbox" id="selectAll" /></th>
+            <th>Item</th>
+            <th>Price</th>
+            <th>Discount</th>
+            <th>Visible</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody id="offersBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Apply log -->
+    <div class="panel" id="logPanel" style="display:none;">
+      <div class="log-header">
+        <div>
+          <h2>Apply Log</h2>
+          <div class="counts" id="logCounts"></div>
+        </div>
+        <button type="button" class="secondary small" id="clearLogBtn">Clear</button>
+      </div>
+      <div id="logBody"></div>
+      <div id="logFailedIds" class="log-failed-ids" style="display:none;"></div>
+    </div>
+
+    <div class="footer">
+      Calls <code>/.netlify/functions/catalog-editor</code> · source: <a href="https://github.com/ioustinos/gonnaorder-scripts" target="_blank" rel="noreferrer">github.com/ioustinos/gonnaorder-scripts</a>
+    </div>
+  </div>
+
+  <script>
+    // ── State ─────────────────────────────────────────────────────────────────
+    const state = {
+      catalogue: null,       // { token, catalogId, offers }
+      edits: {},             // { [offerId]: { price?, discountPct?, isSellable?, variants?: { [vid]: { price?, isSellable? } } } }
+      selected: new Set(),
+      expanded: new Set(),
+      applying: new Set(),
+      applied: new Set(),
+      steps: [],
+      categoryFilter: '',
+      openJsonKeys: new Set(),  // 'i:payload' or 'i:response' — which step JSON blocks are open
+    };
+
+    const API = '/api/catalog-editor';
+    const REMEMBER_KEY = 'gonnaorder.username';
+
+    // ── Elements ─────────────────────────────────────────────────────────────
+    const $ = id => document.getElementById(id);
+    const emailEl = $('email'), passwordEl = $('password'), storeIdEl = $('storeId');
+    const loadBtn = $('loadBtn'), errorBanner = $('errorBanner');
+    const categoryWrap = $('categoryWrap'), categoryFilterEl = $('categoryFilter');
+    const cataloguePanel = $('cataloguePanel'), itemCountEl = $('itemCount');
+    const bulkBar = $('bulkBar'), selectedCountEl = $('selectedCount'), bulkDiscountEl = $('bulkDiscount');
+    const offersBody = $('offersBody'), selectAllEl = $('selectAll');
+    const logPanel = $('logPanel'), logCountsEl = $('logCounts'), logBodyEl = $('logBody'), logFailedIdsEl = $('logFailedIds');
+
+    // Restore remembered email
+    try {
+      const saved = localStorage.getItem(REMEMBER_KEY);
+      if (saved) emailEl.value = saved;
+    } catch {}
+    emailEl.addEventListener('change', () => {
+      try { localStorage.setItem(REMEMBER_KEY, emailEl.value.trim()); } catch {}
+    });
+
+    // ── Derived ──────────────────────────────────────────────────────────────
+    function allOffers() { return state.catalogue?.offers || []; }
+    function visibleOffers() {
+      const all = allOffers();
+      if (!state.categoryFilter) return all;
+      return all.filter(o => o.categoryName === state.categoryFilter);
+    }
+    function getEff(offer) {
+      const e = state.edits[offer.offerId] || {};
+      return {
+        ...offer,
+        price:       e.price       !== undefined ? e.price       : offer.price,
+        discountPct: e.discountPct !== undefined ? e.discountPct : (offer.discount ?? 0),
+        isSellable:  e.isSellable  !== undefined ? e.isSellable  : offer.isSellable,
+        variants: offer.variants.map(v => {
+          const ve = (e.variants || {})[v.offerId] || {};
+          return {
+            ...v,
+            price:      ve.price      !== undefined ? ve.price      : v.price,
+            isSellable: ve.isSellable !== undefined ? ve.isSellable : (v.isSellable ?? true),
+          };
+        }),
+      };
+    }
+    function isDirty(offer) {
+      const e = state.edits[offer.offerId];
+      if (!e) return false;
+      if (e.price !== undefined || e.discountPct !== undefined || e.isSellable !== undefined) return true;
+      return Object.values(e.variants || {}).some(v => v.price !== undefined || v.isSellable !== undefined);
+    }
+    function isAnyApplying() { return state.applying.size > 0; }
+
+    // ── Edit helpers ─────────────────────────────────────────────────────────
+    function editField(offerId, field, val) {
+      state.edits[offerId] = { ...(state.edits[offerId] || {}), [field]: val };
+    }
+    function editVariantField(offerId, variantId, field, val) {
+      const e = state.edits[offerId] || {};
+      const vMap = e.variants || {};
+      state.edits[offerId] = { ...e, variants: { ...vMap, [variantId]: { ...(vMap[variantId] || {}), [field]: val } } };
+    }
+
+    // ── safeFetch ────────────────────────────────────────────────────────────
+    async function safeFetch(url, opts) {
+      const resp = await fetch(url, opts);
+      const ct = resp.headers.get('content-type') || '';
+      if (!ct.includes('application/json'))
+        throw new Error(`Server error ${resp.status} — not JSON (likely timeout)`);
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+      return data;
+    }
+
+    // ── HTML helpers ─────────────────────────────────────────────────────────
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    }
+
+    // ── Renderers ────────────────────────────────────────────────────────────
+    function showError(msg) {
+      if (!msg) { errorBanner.style.display = 'none'; errorBanner.textContent = ''; return; }
+      errorBanner.style.display = ''; errorBanner.textContent = msg;
+    }
+
+    function renderCategoryFilter() {
+      if (!state.catalogue) { categoryWrap.style.display = 'none'; return; }
+      const all = allOffers();
+      const cats = [...new Set(all.map(o => o.categoryName).filter(Boolean))].sort();
+      categoryWrap.style.display = '';
+      let html = `<option value="">All (${all.length} items)</option>`;
+      cats.forEach(cat => {
+        const count = all.filter(o => o.categoryName === cat).length;
+        html += `<option value="${esc(cat)}"${state.categoryFilter === cat ? ' selected' : ''}>${esc(cat)} (${count})</option>`;
+      });
+      categoryFilterEl.innerHTML = html;
+    }
+
+    function renderInfoBar() {
+      if (!state.catalogue) return;
+      const offers = visibleOffers();
+      const txt = `<strong style="color:var(--text);">${offers.length}</strong> items${state.categoryFilter ? ` in "${esc(state.categoryFilter)}"` : ''} · catalogId: <code>${esc(state.catalogue.catalogId)}</code>`;
+      itemCountEl.innerHTML = txt;
+    }
+
+    function renderBulkBar() {
+      const n = state.selected.size;
+      if (!n) { bulkBar.style.display = 'none'; return; }
+      bulkBar.style.display = '';
+      selectedCountEl.textContent = `${n} selected`;
+    }
+
+    function renderTable() {
+      const offers = visibleOffers();
+      // Update header checkbox
+      selectAllEl.checked = offers.length > 0 && offers.every(o => state.selected.has(o.offerId));
+      selectAllEl.indeterminate = !selectAllEl.checked && offers.some(o => state.selected.has(o.offerId));
+
+      if (offers.length === 0) {
+        offersBody.innerHTML = `<tr><td colspan="6" class="empty">${state.categoryFilter ? `No items in "${esc(state.categoryFilter)}"` : 'No items found'}</td></tr>`;
+        return;
+      }
+
+      const rows = [];
+      for (const offer of offers) {
+        const eff = getEff(offer);
+        const dirty = isDirty(offer);
+        const applyingNow = state.applying.has(offer.offerId);
+        const appliedNow = state.applied.has(offer.offerId);
+        const expanded = state.expanded.has(offer.offerId);
+        const hasVariants = offer.variants.length > 0;
+        const checked = state.selected.has(offer.offerId);
+        const trClass = `${dirty ? 'dirty' : ''} ${applyingNow ? 'applying' : ''}`.trim();
+
+        rows.push(`
+          <tr class="${trClass}" data-offer-id="${offer.offerId}">
+            <td class="col-check">
+              <input type="checkbox" data-action="select" data-id="${offer.offerId}" ${checked ? 'checked' : ''} />
+            </td>
+            <td>
+              <div class="item-name">
+                ${hasVariants
+                  ? `<span class="expand" data-action="expand" data-id="${offer.offerId}">${expanded ? '▼' : '▶'}</span>`
+                  : `<span class="expand"></span>`}
+                <span class="name ${eff.isSellable ? '' : 'hidden'}">${esc(offer.name)}</span>
+                ${hasVariants ? `<span class="var-count">(${offer.variants.length})</span>` : ''}
+                ${dirty ? `<span class="dirty-dot" title="Unsaved changes"></span>` : ''}
+              </div>
+            </td>
+            <td>
+              <span class="price-wrap"><input type="number" min="0" step="0.01" class="cell-price" value="${eff.price ?? 0}" data-action="edit-price" data-id="${offer.offerId}" /></span>
+            </td>
+            <td>
+              <span class="discount-wrap"><input type="number" min="0" max="99" step="1" class="cell-discount" value="${eff.discountPct ?? 0}" data-action="edit-discount" data-id="${offer.offerId}" /></span>
+            </td>
+            <td>
+              <button class="vis-btn ${eff.isSellable ? 'on' : ''}" data-action="vis-toggle" data-id="${offer.offerId}" ${applyingNow ? 'disabled' : ''} title="${eff.isSellable ? 'Visible — click to hide' : 'Hidden — click to show'}">
+                ${applyingNow ? '⏳' : eff.isSellable ? '👁 On' : '🚫 Off'}
+              </button>
+            </td>
+            <td class="col-actions">
+              <button class="apply-btn ${appliedNow ? 'applied' : ''}" data-action="apply" data-id="${offer.offerId}" ${applyingNow || isAnyApplying() ? 'disabled' : ''}>
+                ${applyingNow ? '⏳' : appliedNow ? '✓' : 'Apply'}
+              </button>
+            </td>
+          </tr>
+        `);
+
+        if (expanded) {
+          for (const v of eff.variants) {
+            rows.push(`
+              <tr class="variant" data-offer-id="${offer.offerId}" data-variant-id="${v.offerId}">
+                <td class="col-check"></td>
+                <td>
+                  <span class="variant-arrow">↳</span>
+                  <span class="variant-name ${v.isSellable ? '' : 'hidden'}">${esc(v.name)}</span>
+                </td>
+                <td>
+                  <span class="price-wrap"><input type="number" min="0" step="0.01" class="cell-price" value="${v.price ?? 0}" data-action="edit-variant-price" data-id="${offer.offerId}" data-vid="${v.offerId}" /></span>
+                </td>
+                <td>
+                  <span class="variant-discount">inherits ${eff.discountPct ?? 0}%</span>
+                </td>
+                <td>
+                  <button class="vis-btn ${v.isSellable ? 'on' : ''}" data-action="vis-toggle-variant" data-id="${offer.offerId}" data-vid="${v.offerId}" ${applyingNow ? 'disabled' : ''}>
+                    ${applyingNow ? '⏳' : v.isSellable ? '👁 On' : '🚫 Off'}
+                  </button>
+                </td>
+                <td class="col-actions"></td>
+              </tr>
+            `);
+          }
+        }
+      }
+      offersBody.innerHTML = rows.join('');
+    }
+
+    function renderLog() {
+      if (!state.steps.length) { logPanel.style.display = 'none'; return; }
+      logPanel.style.display = '';
+      const ok = state.steps.filter(s => s.status === 'ok').length;
+      const errs = state.steps.filter(s => s.status === 'error');
+      logCountsEl.textContent = `${ok} OK${errs.length ? ` · ${errs.length} errors` : ' · no errors'}`;
+
+      const html = state.steps.map((step, i) => {
+        const isVariant = step.type === 'VARIANT';
+        const kind = isVariant ? 'variant' : 'parent';
+        const errClass = step.status === 'error' ? 'error' : '';
+        const varClass = isVariant ? 'variant' : '';
+        const payloadKey = `${i}:payload`;
+        const responseKey = `${i}:response`;
+        const payloadOpen = state.openJsonKeys.has(payloadKey);
+        const responseOpen = state.openJsonKeys.has(responseKey);
+
+        return `
+          <div class="log-step ${errClass} ${varClass}">
+            <div class="log-step-head">
+              <span class="log-step-num">${i + 1}</span>
+              <span class="log-step-kind ${kind}">${kind}</span>
+              <span class="log-step-name">${isVariant ? '↳ ' : ''}${esc(step.name || kind)}</span>
+              <span class="log-step-status ${step.status === 'ok' ? 'ok' : 'err'}">${step.status === 'ok' ? '✓' : '✕'}</span>
+            </div>
+            ${step.error ? `<div class="log-step-error">${esc(step.error)}</div>` : ''}
+            ${step.childOfferId && step.type === 'PARENT' ? `<div class="log-step-child">childOfferId: <strong>${esc(step.childOfferId)}</strong></div>` : ''}
+            ${step.payload ? `<div class="log-step-toggle" data-action="toggle-json" data-key="${payloadKey}">${payloadOpen ? '▲ hide payload' : '▼ payload'}</div>${payloadOpen ? `<pre class="log-step-json">${esc(JSON.stringify(step.payload, null, 2))}</pre>` : ''}` : ''}
+            ${step.response ? `<div class="log-step-toggle" data-action="toggle-json" data-key="${responseKey}">${responseOpen ? '▲ hide response' : '▼ response'}</div>${responseOpen ? `<pre class="log-step-json">${esc(JSON.stringify(step.response, null, 2))}</pre>` : ''}` : ''}
+          </div>
+        `;
+      }).join('');
+      logBodyEl.innerHTML = html;
+
+      if (errs.length) {
+        const ids = errs.map(s => s.offerId).filter(Boolean).join(', ');
+        logFailedIdsEl.style.display = '';
+        logFailedIdsEl.innerHTML = `<strong>Failed offer IDs</strong><span class="ids">${esc(ids)}</span>`;
+      } else {
+        logFailedIdsEl.style.display = 'none';
+      }
+    }
+
+    function render() {
+      renderCategoryFilter();
+      if (state.catalogue) {
+        cataloguePanel.style.display = '';
+        renderInfoBar();
+        renderBulkBar();
+        renderTable();
+      } else {
+        cataloguePanel.style.display = 'none';
+      }
+      renderLog();
+    }
+
+    // ── Actions ──────────────────────────────────────────────────────────────
+    async function loadCatalogue() {
+      const email = emailEl.value.trim();
+      const password = passwordEl.value;
+      const storeId = storeIdEl.value.trim();
+      if (!email || !password) { showError('Email and password are required'); return; }
+      if (!storeId) { showError('Store ID is required'); return; }
+      showError('');
+
+      loadBtn.disabled = true;
+      loadBtn.textContent = '⏳ Loading…';
+      state.catalogue = null;
+      state.edits = {};
+      state.selected = new Set();
+      state.expanded = new Set();
+      state.applied = new Set();
+      state.categoryFilter = '';
+      render();
+
+      try {
+        try { localStorage.setItem(REMEMBER_KEY, email); } catch {}
+        const data = await safeFetch(API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'catalogue', email, password, storeId }),
+        });
+        state.catalogue = data;
+        render();
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        loadBtn.disabled = false;
+        loadBtn.textContent = '📋 Load Catalogue';
+      }
+    }
+
+    function markApplied(offerId) {
+      state.applied.add(offerId);
+      render();
+      setTimeout(() => { state.applied.delete(offerId); render(); }, 2000);
+    }
+
+    async function doApply(offerId, overrides = {}, variantOverrides = {}) {
+      const offer = allOffers().find(o => o.offerId === offerId);
+      if (!offer || !state.catalogue) return;
+
+      const eff = getEff(offer);
+      const merged = {
+        ...eff,
+        ...overrides,
+        variants: eff.variants.map(v => ({ ...v, ...(variantOverrides[v.offerId] || {}) })),
+      };
+
+      state.applying.add(offerId);
+      render();
+
+      try {
+        const data = await safeFetch(API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'apply-one',
+            email: emailEl.value.trim(),
+            password: passwordEl.value,
+            storeId: storeIdEl.value.trim(),
+            catalogId: state.catalogue.catalogId,
+            token: state.catalogue.token,
+            discountPct: merged.discountPct,
+            offer: merged,
+          }),
+        });
+        state.steps.push(...(data.steps || []));
+        state.applying.delete(offerId);
+        markApplied(offerId);
+      } catch (err) {
+        state.steps.push({ type: 'PARENT', status: 'error', offerId, name: offer.name, error: err.message });
+        state.applying.delete(offerId);
+        render();
+      }
+    }
+
+    function handleVisToggle(offerId) {
+      const offer = allOffers().find(o => o.offerId === offerId);
+      if (!offer) return;
+      const eff = getEff(offer);
+      const newVal = !eff.isSellable;
+      editField(offerId, 'isSellable', newVal);
+      doApply(offerId, { isSellable: newVal });
+    }
+
+    function handleVariantVisToggle(parentOfferId, variantOfferId) {
+      const offer = allOffers().find(o => o.offerId === parentOfferId);
+      if (!offer) return;
+      const eff = getEff(offer);
+      const v = eff.variants.find(x => x.offerId === variantOfferId);
+      if (!v) return;
+      const newVal = !v.isSellable;
+      editVariantField(parentOfferId, variantOfferId, 'isSellable', newVal);
+      doApply(parentOfferId, {}, { [variantOfferId]: { isSellable: newVal } });
+    }
+
+    async function applyBulkDiscount() {
+      const n = Number(bulkDiscountEl.value);
+      if (isNaN(n) || n < 0 || n > 99) { showError('Enter 0–99 for bulk discount'); return; }
+      showError('');
+      const ids = [...state.selected];
+      for (const id of ids) {
+        await doApply(id, { discountPct: n });
+      }
+    }
+
+    async function applyBulkVisibility(visible) {
+      showError('');
+      const ids = [...state.selected];
+      for (const id of ids) {
+        await doApply(id, { isSellable: visible });
+      }
+    }
+
+    // ── Event delegation ─────────────────────────────────────────────────────
+    loadBtn.addEventListener('click', loadCatalogue);
+    [emailEl, passwordEl, storeIdEl].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') loadCatalogue(); }));
+
+    categoryFilterEl.addEventListener('change', e => {
+      state.categoryFilter = e.target.value;
+      state.selected = new Set();
+      render();
+    });
+
+    selectAllEl.addEventListener('change', () => {
+      const offers = visibleOffers();
+      if (selectAllEl.checked) {
+        offers.forEach(o => state.selected.add(o.offerId));
+      } else {
+        offers.forEach(o => state.selected.delete(o.offerId));
+      }
+      render();
+    });
+
+    $('bulkApplyDiscount').addEventListener('click', applyBulkDiscount);
+    $('bulkShow').addEventListener('click', () => applyBulkVisibility(true));
+    $('bulkHide').addEventListener('click', () => applyBulkVisibility(false));
+    $('clearLogBtn').addEventListener('click', () => { state.steps = []; state.openJsonKeys.clear(); render(); });
+
+    // Table click / change delegation
+    offersBody.addEventListener('change', e => {
+      const action = e.target.dataset.action;
+      const id = e.target.dataset.id;
+      const vid = e.target.dataset.vid;
+      if (action === 'select') {
+        if (e.target.checked) state.selected.add(id); else state.selected.delete(id);
+        renderBulkBar();
+        selectAllEl.checked = visibleOffers().every(o => state.selected.has(o.offerId));
+        selectAllEl.indeterminate = !selectAllEl.checked && state.selected.size > 0;
+      } else if (action === 'edit-price') {
+        const val = parseFloat(e.target.value) || 0;
+        editField(id, 'price', val);
+        markRowDirty(id);
+      } else if (action === 'edit-discount') {
+        const val = parseInt(e.target.value) || 0;
+        editField(id, 'discountPct', val);
+        markRowDirty(id);
+        // Update variant inherited-discount labels live (no full re-render)
+        document.querySelectorAll(`tr.variant[data-offer-id="${id}"] .variant-discount`).forEach(el => {
+          el.textContent = `inherits ${val}%`;
+        });
+      } else if (action === 'edit-variant-price') {
+        const val = parseFloat(e.target.value) || 0;
+        editVariantField(id, vid, 'price', val);
+        markRowDirty(id);
+      }
+    });
+    offersBody.addEventListener('input', e => {
+      // Mirror change to keep dirty indicator responsive
+      if (['edit-price', 'edit-discount', 'edit-variant-price'].includes(e.target.dataset.action)) {
+        e.target.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+
+    offersBody.addEventListener('click', e => {
+      const action = e.target.dataset.action;
+      const id = e.target.dataset.id;
+      const vid = e.target.dataset.vid;
+      if (action === 'expand') {
+        if (state.expanded.has(id)) state.expanded.delete(id); else state.expanded.add(id);
+        render();
+      } else if (action === 'vis-toggle') {
+        handleVisToggle(id);
+      } else if (action === 'vis-toggle-variant') {
+        handleVariantVisToggle(id, vid);
+      } else if (action === 'apply') {
+        doApply(id);
+      }
+    });
+
+    logBodyEl.addEventListener('click', e => {
+      if (e.target.dataset.action === 'toggle-json') {
+        const key = e.target.dataset.key;
+        if (state.openJsonKeys.has(key)) state.openJsonKeys.delete(key); else state.openJsonKeys.add(key);
+        renderLog();
+      }
+    });
+
+    function markRowDirty(offerId) {
+      const tr = offersBody.querySelector(`tr[data-offer-id="${offerId}"]:not(.variant)`);
+      if (!tr) return;
+      tr.classList.add('dirty');
+      const nameDiv = tr.querySelector('.item-name');
+      if (nameDiv && !nameDiv.querySelector('.dirty-dot')) {
+        const dot = document.createElement('span');
+        dot.className = 'dirty-dot';
+        dot.title = 'Unsaved changes';
+        nameDiv.appendChild(dot);
+      }
+    }
+
+    // Initial render
+    render();
+  </script>
+</body>
+</html>

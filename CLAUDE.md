@@ -91,6 +91,29 @@ server-side secrets (Sentry DSN, etc.), they go here.
     deserializer rejects unknown enum values with that opaque message
     instead of a field-level error.
 
+## Catalogue API notes
+
+- Fetch full catalogue: `GET /api/v1/user/stores/{storeId}/catalog` (Bearer JWT).
+  Returns `{ catalogId, categories: [{ name, offers: [...] }] }`. The frontend
+  filters categories client-side — there is no per-category endpoint.
+- Apply price/discount/visibility override: `POST /api/v1/stores/{storeId}/catalog/{catalogId}/offer/override`.
+- **Critical: parent override first, then variants.** A "clone" store stores
+  customisations against the parent store's offer IDs. The override payload
+  uses `overrideOfferId` = parent-store offer ID and an optional `childOfferId`
+  for the existing customisation. The parent override's response returns the
+  `childOfferId` that ALL variant overrides for that offer must reference.
+  If you do variants first, GonnaOrder creates orphan customisations and the
+  cascade breaks. Do NOT reorder this in `catalog-editor.js`.
+- Variant payload also needs `hierarchyLevel: "VARIANT"` and
+  `overrideOfferIdVariant` (the parent store's variant ID). The function
+  picks these up from `variant.originalOfferId`.
+- Variants inherit the parent's discount — the UI shows "inherits X%" and
+  the function applies the same `discount` string to each variant payload.
+- The catalogue editor reuses one JWT for an entire session of "apply" calls
+  (token returned by the `catalogue` mode is stored client-side and passed
+  back in every `apply-one` body). If GonnaOrder rejects calls mid-session,
+  reload the catalogue to get a fresh token.
+
 ## Page layout
 
 ```
@@ -98,6 +121,8 @@ public/
   index.html             ← home: card grid linking to each script
   vouchers/
     index.html           ← Voucher Importer
+  catalogue/
+    index.html           ← Catalogue Editor (price / discount / visibility per item, bulk ops)
   sample-vouchers.csv    ← shared starter, kept at root so it's /sample-vouchers.csv
 ```
 
