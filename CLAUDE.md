@@ -113,6 +113,15 @@ server-side secrets (Sentry DSN, etc.), they go here.
   (token returned by the `catalogue` mode is stored client-side and passed
   back in every `apply-one` body). If GonnaOrder rejects calls mid-session,
   reload the catalogue to get a fresh token.
+- **Override endpoint only works for inherited (clone) catalogues**, not
+  parent stores. The function detects this via `inheritedCount` (number of
+  offers with `originalOffer.offerId` set) and returns
+  `isInheritedCatalogue: boolean` in the `catalogue` response. The frontend
+  shows a warning banner and disables Apply / vis-toggle / bulk buttons
+  when `isInheritedCatalogue === false`. For parent stores, a different
+  GonnaOrder endpoint would be needed (direct offer update) — not yet
+  wired here. If we ever add it, branch on `isInheritedCatalogue` in
+  `apply-one` and route to the right endpoint.
 
 ## Page layout
 

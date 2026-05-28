@@ -75,9 +75,11 @@ export const handler = async (event) => {
       if (!catalogId) throw new Error("No catalogId in response");
 
       const offers = [];
+      let inheritedCount = 0;
       for (const cat of (catalogData.categories || [])) {
         for (const offer of (cat.offers || [])) {
           const parentStoreOfferId = offer.originalOffer?.offerId || null;
+          if (parentStoreOfferId) inheritedCount++;
           offers.push({
             offerId:             offer.offerId,
             parentStoreOfferId,
@@ -101,7 +103,15 @@ export const handler = async (event) => {
         }
       }
 
-      return json(200, { token, catalogId, offers });
+      // Detect whether this is a "clone" (inherited) catalogue or a "parent"
+      // catalogue. The /offer/override endpoint used by apply-one ONLY works
+      // for inherited catalogues — for parent stores, there'd need to be a
+      // different (direct-update) endpoint that we don't currently call.
+      // Heuristic: a clone catalogue has every offer linked to a parent-store
+      // offer via originalOffer.offerId. If NO offer has one, it's a parent.
+      const isInheritedCatalogue = inheritedCount > 0;
+
+      return json(200, { token, catalogId, offers, isInheritedCatalogue, inheritedCount });
     }
 
     // ── MODE: apply-one ─────────────────────────────────────────────────────

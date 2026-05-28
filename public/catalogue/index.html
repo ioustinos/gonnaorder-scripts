@@ -59,6 +59,9 @@
     code { background: var(--panel-2); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
     .footer { color: var(--muted); font-size: 12px; margin-top: 32px; text-align: center; }
     .err-banner { color: var(--err); background: rgba(255, 69, 58, 0.08); border: 1px solid rgba(255, 69, 58, 0.3); border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-top: 12px; }
+    .warn-banner { color: var(--warn); background: rgba(255, 176, 32, 0.08); border: 1px solid rgba(255, 176, 32, 0.3); border-radius: 8px; padding: 12px 14px; font-size: 13px; margin-bottom: 16px; line-height: 1.5; }
+    .warn-banner strong { color: var(--text); }
+    .warn-banner code { background: rgba(255,255,255,0.05); }
 
     /* Info bar */
     .info-bar { padding: 12px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); background: rgba(255,255,255,0.01); }
@@ -199,6 +202,16 @@
       <div id="errorBanner" class="err-banner" style="display:none;"></div>
     </div>
 
+    <!-- Parent-catalogue warning (shown only if loaded catalogue is not inherited) -->
+    <div id="parentWarn" class="warn-banner" style="display:none;">
+      <strong>⚠ This looks like a parent catalogue, not a clone.</strong> The Apply / Show / Hide
+      buttons use GonnaOrder's <code>/offer/override</code> endpoint, which only works on
+      <strong>inherited (clone) catalogues</strong>. Editing the parent directly needs a different
+      endpoint that this tool doesn't call yet — applying changes from here will fail.
+      You can still browse the catalogue read-only; to actually push changes, either edit the
+      parent in the GonnaOrder admin directly, or load a clone store's ID instead.
+    </div>
+
     <!-- Catalogue table -->
     <div class="panel panel-tight" id="cataloguePanel" style="display:none;">
       <div class="info-bar">
@@ -272,6 +285,7 @@
     const cataloguePanel = $('cataloguePanel'), itemCountEl = $('itemCount');
     const bulkBar = $('bulkBar'), selectedCountEl = $('selectedCount'), bulkDiscountEl = $('bulkDiscount');
     const offersBody = $('offersBody'), selectAllEl = $('selectAll');
+    const parentWarn = $('parentWarn');
     const logPanel = $('logPanel'), logCountsEl = $('logCounts'), logBodyEl = $('logBody'), logFailedIdsEl = $('logFailedIds');
 
     // Restore remembered email
@@ -372,6 +386,15 @@
       if (!n) { bulkBar.style.display = 'none'; return; }
       bulkBar.style.display = '';
       selectedCountEl.textContent = `${n} selected`;
+      // Gate bulk buttons by catalogue type
+      const inherited = isInherited();
+      ['bulkApplyDiscount', 'bulkShow', 'bulkHide'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) {
+          btn.disabled = !inherited;
+          btn.title = inherited ? '' : 'Parent catalogue — apply not supported';
+        }
+      });
     }
 
     function renderTable() {
@@ -386,6 +409,8 @@
       }
 
       const rows = [];
+      const inherited = isInherited();
+      const applyDisabledTitle = inherited ? '' : 'title="Parent catalogue — apply isn\'t supported"';
       for (const offer of offers) {
         const eff = getEff(offer);
         const dirty = isDirty(offer);
@@ -395,6 +420,8 @@
         const hasVariants = offer.variants.length > 0;
         const checked = state.selected.has(offer.offerId);
         const trClass = `${dirty ? 'dirty' : ''} ${applyingNow ? 'applying' : ''}`.trim();
+        const applyDisabledAttr = (applyingNow || isAnyApplying() || !inherited) ? 'disabled' : '';
+        const visDisabledAttr = (applyingNow || !inherited) ? 'disabled' : '';
 
         rows.push(`
           <tr class="${trClass}" data-offer-id="${offer.offerId}">
@@ -418,12 +445,12 @@
               <span class="discount-wrap"><input type="number" min="0" max="99" step="1" class="cell-discount" value="${eff.discountPct ?? 0}" data-action="edit-discount" data-id="${offer.offerId}" /></span>
             </td>
             <td>
-              <button class="vis-btn ${eff.isSellable ? 'on' : ''}" data-action="vis-toggle" data-id="${offer.offerId}" ${applyingNow ? 'disabled' : ''} title="${eff.isSellable ? 'Visible — click to hide' : 'Hidden — click to show'}">
+              <button class="vis-btn ${eff.isSellable ? 'on' : ''}" data-action="vis-toggle" data-id="${offer.offerId}" ${visDisabledAttr} title="${!inherited ? 'Parent catalogue — apply not supported' : eff.isSellable ? 'Visible — click to hide' : 'Hidden — click to show'}">
                 ${applyingNow ? '⏳' : eff.isSellable ? '👁 On' : '🚫 Off'}
               </button>
             </td>
             <td class="col-actions">
-              <button class="apply-btn ${appliedNow ? 'applied' : ''}" data-action="apply" data-id="${offer.offerId}" ${applyingNow || isAnyApplying() ? 'disabled' : ''}>
+              <button class="apply-btn ${appliedNow ? 'applied' : ''}" data-action="apply" data-id="${offer.offerId}" ${applyDisabledAttr} ${!inherited ? 'title="Parent catalogue — apply not supported"' : ''}>
                 ${applyingNow ? '⏳' : appliedNow ? '✓' : 'Apply'}
               </button>
             </td>
@@ -446,7 +473,7 @@
                   <span class="variant-discount">inherits ${eff.discountPct ?? 0}%</span>
                 </td>
                 <td>
-                  <button class="vis-btn ${v.isSellable ? 'on' : ''}" data-action="vis-toggle-variant" data-id="${offer.offerId}" data-vid="${v.offerId}" ${applyingNow ? 'disabled' : ''}>
+                  <button class="vis-btn ${v.isSellable ? 'on' : ''}" data-action="vis-toggle-variant" data-id="${offer.offerId}" data-vid="${v.offerId}" ${visDisabledAttr} ${!inherited ? 'title="Parent catalogue — apply not supported"' : ''}>
                     ${applyingNow ? '⏳' : v.isSellable ? '👁 On' : '🚫 Off'}
                   </button>
                 </td>
@@ -502,15 +529,28 @@
       }
     }
 
+    function isInherited() {
+      // Default true if the flag is missing (older deploys / inspect mode), so
+      // we don't accidentally block applies on a working clone catalogue.
+      return state.catalogue?.isInheritedCatalogue !== false;
+    }
+
+    function renderParentWarn() {
+      if (!state.catalogue) { parentWarn.style.display = 'none'; return; }
+      parentWarn.style.display = isInherited() ? 'none' : '';
+    }
+
     function render() {
       renderCategoryFilter();
       if (state.catalogue) {
         cataloguePanel.style.display = '';
+        renderParentWarn();
         renderInfoBar();
         renderBulkBar();
         renderTable();
       } else {
         cataloguePanel.style.display = 'none';
+        parentWarn.style.display = 'none';
       }
       renderLog();
     }
