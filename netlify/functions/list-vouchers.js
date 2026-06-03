@@ -4,10 +4,15 @@
 // returns the raw API response. Used by the "Inspect" button on the page to
 // surface things like the real `discountType` / `type` enum strings.
 //
-// Body: { username, password, storeId, size? }
+// Body: { username, password, storeId, size?, apiBase? }
 // Returns: { count, vouchers: [...] }  ← unaltered from the GonnaOrder response
 
-const GO_API = "https://admin.gonnaorder.com/api/v1";
+const DEFAULT_API_BASE = "https://admin.gonnaorder.com";
+
+function normalizeApiBase(b) {
+  if (!b || typeof b !== "string") return DEFAULT_API_BASE;
+  return b.trim().replace(/\/+$/, "").replace(/\/api\/v\d+$/, "");
+}
 
 export const handler = async (event) => {
   if (event.httpMethod !== "POST") {
@@ -28,14 +33,16 @@ export const handler = async (event) => {
     return json(400, { error: "storeId must be an integer" });
   }
 
+  const goApi = `${normalizeApiBase(body.apiBase)}/api/v1`;
+
   let jwt;
   try {
-    jwt = await authenticate(username, password);
+    jwt = await authenticate(goApi, username, password);
   } catch (e) {
     return json(502, { error: `GonnaOrder auth failed: ${e.message}` });
   }
 
-  const url = `${GO_API}/stores/${encodeURIComponent(storeId)}/customer-voucher?size=${size}`;
+  const url = `${goApi}/stores/${encodeURIComponent(storeId)}/customer-voucher?size=${size}`;
   const res = await fetch(url, {
     method: "GET",
     headers: { authorization: `Bearer ${jwt}` },
@@ -56,8 +63,8 @@ export const handler = async (event) => {
   return json(200, { count: vouchers.length, vouchers });
 };
 
-async function authenticate(username, password) {
-  const res = await fetch(`${GO_API}/auth/login`, {
+async function authenticate(goApi, username, password) {
+  const res = await fetch(`${goApi}/auth/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ username, password }),

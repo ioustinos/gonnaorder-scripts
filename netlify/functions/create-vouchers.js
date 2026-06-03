@@ -1,14 +1,23 @@
 // netlify/functions/create-vouchers.js
 //
 // Bulk-creates customer vouchers in a GonnaOrder store.
-// Body: { username, password, storeId: number, rows: VoucherRow[] }
+// Body: { username, password, storeId: number, rows: VoucherRow[], apiBase? }
 // Returns: { results: [{ code, ok, error?, voucherId? }] }
 //
 // Auth: the caller passes their GonnaOrder credentials in the request body.
 // We log in once to get a JWT, reuse it for every voucher in the batch, then
 // discard it. Credentials are never logged or persisted server-side.
+//
+// apiBase defaults to https://admin.gonnaorder.com — the caller can override
+// it from the UI for staging / other deployments. We strip any trailing
+// slash and any accidental /api/v1 suffix.
 
-const GO_API = "https://admin.gonnaorder.com/api/v1";
+const DEFAULT_API_BASE = "https://admin.gonnaorder.com";
+
+function normalizeApiBase(b) {
+  if (!b || typeof b !== "string") return DEFAULT_API_BASE;
+  return b.trim().replace(/\/+$/, "").replace(/\/api\/v\d+$/, "");
+}
 
 export const handler = async (event) => {
   if (event.httpMethod !== "POST") {
@@ -36,10 +45,13 @@ export const handler = async (event) => {
     return json(400, { error: "Maximum 500 rows per batch" });
   }
 
+  const apiBase = normalizeApiBase(body.apiBase);
+  const goApi = `${apiBase}/api/v1`;
+
   // 1. Authenticate
   let jwt;
   try {
-    jwt = await authenticate(username, password);
+    jwt = await authenticate(goApi, username, password);
   } catch (e) {
     return json(502, { error: `GonnaOrder auth failed: ${e.message}` });
   }
@@ -50,7 +62,7 @@ export const handler = async (event) => {
   const results = [];
   for (const row of rows) {
     try {
-      const voucher = await createVoucher(jwt, storeId, row);
+      const voucher = await createVoucher(goApi, jwt, storeId, row);
       results.push({ code: row.code, ok: true, voucherId: voucher?.id ?? null });
     } catch (e) {
       results.push({ code: row.code, ok: false, error: e.message });
@@ -60,8 +72,8 @@ export const handler = async (event) => {
   return json(200, { results });
 };
 
-async function authenticate(username, password) {
-  const res = await fetch(`${GO_API}/auth/login`, {
+async function authenticate(goApi, username, password) {
+  const res = await fetch(`${goApi}/auth/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ username, password }),
@@ -76,7 +88,7 @@ async function authenticate(username, password) {
   return jwt;
 }
 
-async function createVoucher(jwt, storeId, row) {
+async function createVoucher(goApi, jwt, storeId, row) {
   const now = new Date();
   const sixMonthsLater = new Date(now);
   sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
@@ -104,7 +116,7 @@ async function createVoucher(jwt, storeId, row) {
     durationInMonths: null,
   };
 
-  const res = await fetch(`${GO_API}/stores/${encodeURIComponent(storeId)}/customer-voucher`, {
+  const res = await fetch(`${goApi}/stores/${encodeURIComponent(storeId)}/customer-voucher`, {
     method: "POST",
     headers: {
       "content-type": "application/json",

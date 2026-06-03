@@ -16,10 +16,15 @@
 //   create orphan customisations and the cascade breaks. Carried over
 //   verbatim from the working n8n + frontend reference Ioustinos shared.
 
-const GONNAORDER_BASE = "https://admin.gonnaorder.com";
+const DEFAULT_API_BASE = "https://admin.gonnaorder.com";
 
-async function goFetch(path, options = {}, token) {
-  const resp = await fetch(`${GONNAORDER_BASE}${path}`, {
+function normalizeApiBase(b) {
+  if (!b || typeof b !== "string") return DEFAULT_API_BASE;
+  return b.trim().replace(/\/+$/, "").replace(/\/api\/v\d+$/, "");
+}
+
+async function goFetch(apiBase, path, options = {}, token) {
+  const resp = await fetch(`${apiBase}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -50,6 +55,8 @@ export const handler = async (event) => {
     return json(400, { error: "email and password are required" });
   }
 
+  const apiBase = normalizeApiBase(body.apiBase);
+
   try {
 
     // ── MODE: catalogue ─────────────────────────────────────────────────────
@@ -59,7 +66,7 @@ export const handler = async (event) => {
       const { storeId } = body;
       if (!storeId) return json(400, { error: "storeId is required" });
 
-      const authData = await goFetch("/api/v1/auth/login", {
+      const authData = await goFetch(apiBase, "/api/v1/auth/login", {
         method: "POST",
         body: JSON.stringify({ username: email, password }),
       });
@@ -70,7 +77,7 @@ export const handler = async (event) => {
         authData.access_token;
       if (!token) throw new Error("Auth succeeded but no token found: " + JSON.stringify(authData));
 
-      const catalogData = await goFetch(`/api/v1/user/stores/${storeId}/catalog`, {}, token);
+      const catalogData = await goFetch(apiBase, `/api/v1/user/stores/${storeId}/catalog`, {}, token);
       const catalogId = catalogData.catalogId || catalogData.id;
       if (!catalogId) throw new Error("No catalogId in response");
 
@@ -161,6 +168,7 @@ export const handler = async (event) => {
 
       try {
         const resp = await goFetch(
+          apiBase,
           `/api/v1/stores/${storeId}/catalog/${catalogId}/offer/override`,
           { method: "POST", body: JSON.stringify(parentPayload) },
           token,
@@ -205,6 +213,7 @@ export const handler = async (event) => {
 
         try {
           const resp = await goFetch(
+            apiBase,
             `/api/v1/stores/${storeId}/catalog/${catalogId}/offer/override`,
             { method: "POST", body: JSON.stringify(variantPayload) },
             token,
@@ -231,7 +240,7 @@ export const handler = async (event) => {
     // ── MODE: inspect ───────────────────────────────────────────────────────
     if (mode === "inspect") {
       const { storeId, offerName } = body;
-      const authData = await goFetch("/api/v1/auth/login", {
+      const authData = await goFetch(apiBase, "/api/v1/auth/login", {
         method: "POST",
         body: JSON.stringify({ username: email, password }),
       });
@@ -242,7 +251,7 @@ export const handler = async (event) => {
         authData.access_token;
       if (!token) throw new Error("Auth succeeded but no token found");
 
-      const catalogData = await goFetch(`/api/v1/user/stores/${storeId}/catalog`, {}, token);
+      const catalogData = await goFetch(apiBase, `/api/v1/user/stores/${storeId}/catalog`, {}, token);
       const needle = (offerName || "").toLowerCase();
 
       for (const cat of (catalogData.categories || [])) {

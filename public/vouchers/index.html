@@ -108,6 +108,13 @@
           <button type="button" class="secondary" id="inspectBtn">🔍 Inspect existing vouchers</button>
         </div>
       </div>
+      <div class="row" style="margin-top: 14px;">
+        <div>
+          <label for="apiBase">API base URL <span style="text-transform:none; color:var(--muted); font-weight:normal;">(advanced)</span></label>
+          <input type="text" id="apiBase" placeholder="https://admin.gonnaorder.com" />
+          <div class="help">Defaults to <code>https://admin.gonnaorder.com</code>. Override only if you're pointing at a non-prod instance.</div>
+        </div>
+      </div>
       <div class="help" style="margin-top: 12px;">
         🔒 Credentials are sent over HTTPS to our serverless function, which uses them
         once to get a session token from GonnaOrder. They are not stored on the server.
@@ -166,13 +173,22 @@
 
     // Remember username (only) across sessions so the user just types their password each time.
     const REMEMBER_KEY = 'gonnaorder.username';
+    const API_BASE_KEY = 'gonnaorder.apiBase';
+    const DEFAULT_API_BASE = 'https://admin.gonnaorder.com';
+    const apiBaseInput = document.getElementById('apiBase');
     try {
       const saved = localStorage.getItem(REMEMBER_KEY);
       if (saved) usernameInput.value = saved;
+      const savedBase = localStorage.getItem(API_BASE_KEY);
+      apiBaseInput.value = savedBase || DEFAULT_API_BASE;
     } catch {}
     usernameInput.addEventListener('change', () => {
       try { localStorage.setItem(REMEMBER_KEY, usernameInput.value.trim()); } catch {}
     });
+    apiBaseInput.addEventListener('change', () => {
+      try { localStorage.setItem(API_BASE_KEY, apiBaseInput.value.trim() || DEFAULT_API_BASE); } catch {}
+    });
+    function getApiBase() { return (apiBaseInput.value.trim() || DEFAULT_API_BASE); }
 
     let parsedRows = [];
 
@@ -314,7 +330,7 @@
         const res = await fetch('/api/list-vouchers', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ username, password, storeId: Number(storeId), size: 20 }),
+          body: JSON.stringify({ username, password, storeId: Number(storeId), size: 20, apiBase: getApiBase() }),
         });
         const body = await res.json();
         if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
@@ -373,6 +389,7 @@
           body: JSON.stringify({
             username,
             password,
+            apiBase: getApiBase(),
             storeId: Number(storeId),
             rows: valid.map(r => ({
               code: r.code,

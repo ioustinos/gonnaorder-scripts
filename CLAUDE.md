@@ -67,7 +67,13 @@ server-side secrets (Sentry DSN, etc.), they go here.
 
 ## GonnaOrder API notes (learned the hard way)
 
-- Base URL: `https://admin.gonnaorder.com/api/v1`
+- Base URL: `https://admin.gonnaorder.com` (default — every function accepts
+  `apiBase` in the request body to override per call; the UI surfaces it as
+  an "API base URL (advanced)" input on both tool pages, defaulted from
+  `localStorage['gonnaorder.apiBase']` or the constant). Functions strip
+  trailing slashes and any accidental `/api/v1` suffix so the field is
+  forgiving.
+- API path under base: `/api/v1`
 - Auth: `POST /auth/login` with `{ username, password }` → returns
   `{ tokens: { jwt } }`. Send `Authorization: Bearer <jwt>` on subsequent calls.
 - Create voucher: `POST /stores/{storeId}/customer-voucher` with the payload

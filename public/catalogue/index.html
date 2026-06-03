@@ -193,6 +193,13 @@
           <select id="categoryFilter"></select>
         </div>
       </div>
+      <div class="row" style="margin-top: 14px;">
+        <div>
+          <label for="apiBase">API base URL <span style="text-transform:none; color:var(--muted); font-weight:normal;">(advanced)</span></label>
+          <input type="text" id="apiBase" placeholder="https://admin.gonnaorder.com" />
+          <div class="help">Defaults to <code>https://admin.gonnaorder.com</code>. Override only if you're pointing at a non-prod instance.</div>
+        </div>
+      </div>
       <div class="help" style="margin-top: 12px;">
         🔒 Credentials are sent over HTTPS to the serverless function, used once per
         Load to grab a session token, then discarded. Your email is remembered in
@@ -276,6 +283,8 @@
 
     const API = '/api/catalog-editor';
     const REMEMBER_KEY = 'gonnaorder.username';
+    const API_BASE_KEY = 'gonnaorder.apiBase';
+    const DEFAULT_API_BASE = 'https://admin.gonnaorder.com';
 
     // ── Elements ─────────────────────────────────────────────────────────────
     const $ = id => document.getElementById(id);
@@ -287,15 +296,22 @@
     const offersBody = $('offersBody'), selectAllEl = $('selectAll');
     const parentWarn = $('parentWarn');
     const logPanel = $('logPanel'), logCountsEl = $('logCounts'), logBodyEl = $('logBody'), logFailedIdsEl = $('logFailedIds');
+    const apiBaseEl = $('apiBase');
 
-    // Restore remembered email
+    // Restore remembered email + API base
     try {
       const saved = localStorage.getItem(REMEMBER_KEY);
       if (saved) emailEl.value = saved;
+      const savedBase = localStorage.getItem(API_BASE_KEY);
+      apiBaseEl.value = savedBase || DEFAULT_API_BASE;
     } catch {}
     emailEl.addEventListener('change', () => {
       try { localStorage.setItem(REMEMBER_KEY, emailEl.value.trim()); } catch {}
     });
+    apiBaseEl.addEventListener('change', () => {
+      try { localStorage.setItem(API_BASE_KEY, apiBaseEl.value.trim() || DEFAULT_API_BASE); } catch {}
+    });
+    function getApiBase() { return (apiBaseEl.value.trim() || DEFAULT_API_BASE); }
 
     // ── Derived ──────────────────────────────────────────────────────────────
     function allOffers() { return state.catalogue?.offers || []; }
@@ -579,7 +595,7 @@
         const data = await safeFetch(API, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'catalogue', email, password, storeId }),
+          body: JSON.stringify({ mode: 'catalogue', email, password, storeId, apiBase: getApiBase() }),
         });
         state.catalogue = data;
         render();
@@ -619,6 +635,7 @@
             mode: 'apply-one',
             email: emailEl.value.trim(),
             password: passwordEl.value,
+            apiBase: getApiBase(),
             storeId: storeIdEl.value.trim(),
             catalogId: state.catalogue.catalogId,
             token: state.catalogue.token,
