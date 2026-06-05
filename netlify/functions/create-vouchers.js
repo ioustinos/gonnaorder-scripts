@@ -41,8 +41,8 @@ export const handler = async (event) => {
   if (!Array.isArray(rows) || !rows.length) {
     return json(400, { error: "rows must be a non-empty array" });
   }
-  if (rows.length > 500) {
-    return json(400, { error: "Maximum 500 rows per batch" });
+  if (rows.length > 300) {
+    return json(400, { error: "Maximum 300 rows per batch — the UI chunks larger imports automatically" });
   }
 
   const apiBase = normalizeApiBase(body.apiBase);
@@ -57,8 +57,9 @@ export const handler = async (event) => {
   }
 
   // 2. Create vouchers sequentially. Sequential keeps things simple and avoids
-  //    overwhelming the GonnaOrder API; for 500 rows this still fits well
-  //    inside the 10s function budget assuming ~50ms/request.
+  //    overwhelming the GonnaOrder API; the UI caps each function call at
+  //    300 rows so we stay well inside Netlify's 10s function budget assuming
+  //    ~30ms/request. Larger imports are chunked client-side.
   const results = [];
   for (const row of rows) {
     try {

@@ -355,6 +355,11 @@
       }
     });
 
+    // Chunk size for the import — must match the server-side cap in
+    // netlify/functions/create-vouchers.js. Picked to fit each function
+    // invocation comfortably inside Netlify's 10s budget.
+    const BATCH_SIZE = 300;
+
     importBtn.addEventListener('click', async () => {
       const username = usernameInput.value.trim();
       const password = passwordInput.value;
@@ -372,7 +377,7 @@
       importBtn.disabled = true;
       progressBar.style.display = '';
       summaryEl.style.display = '';
-      let ok = 0, err = 0;
+      let ok = 0, err = 0, processed = 0;
       sumTotal.textContent = valid.length;
       sumOk.textContent = '0';
       sumErr.textContent = '0';
@@ -382,54 +387,81 @@
         if (r._status !== 'invalid') updateRowStatus(i, 'importing');
       });
 
-      try {
-        const res = await fetch('/api/create-vouchers', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            username,
-            password,
-            apiBase: getApiBase(),
-            storeId: Number(storeId),
-            rows: valid.map(r => ({
-              code: r.code,
-              discount: Number(r.discount),
-              discountType: r.discountType,
-              type: r.type,
-              orderMinAmount: Number(r.orderMinAmount) || 0,
-              startDate: r.startDate || null,
-              endDate: r.endDate || null,
-              isActive: r.isActive,
-              externalId: r.externalId || null,
-            })),
-          }),
-        });
-        const body = await res.json();
-        if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
-
-        // body.results matches valid order
-        body.results.forEach((result, vi) => {
-          const idx = parsedRows.findIndex(r => r === valid[vi]);
-          if (result.ok) {
-            updateRowStatus(idx, 'created', '');
-            parsedRows[idx]._errors = [];
-            ok++;
-          } else {
-            updateRowStatus(idx, 'failed', result.error || 'unknown error');
-            err++;
-          }
-          progressFill.style.width = `${Math.round(((vi + 1) / valid.length) * 100)}%`;
-          sumOk.textContent = ok;
-          sumErr.textContent = err;
-        });
-      } catch (e) {
-        alert('Import failed: ' + e.message);
-        parsedRows.forEach((r, i) => {
-          if (r._status === 'importing') updateRowStatus(i, 'failed', e.message);
-        });
-      } finally {
-        importBtn.disabled = false;
+      // Split into chunks of BATCH_SIZE so each function call stays light.
+      const chunks = [];
+      for (let i = 0; i < valid.length; i += BATCH_SIZE) {
+        chunks.push(valid.slice(i, i + BATCH_SIZE));
       }
+
+      const toPayload = r => ({
+        code: r.code,
+        discount: Number(r.discount),
+        discountType: r.discountType,
+        type: r.type,
+        orderMinAmount: Number(r.orderMinAmount) || 0,
+        startDate: r.startDate || null,
+        endDate: r.endDate || null,
+        isActive: r.isActive,
+        externalId: r.externalId || null,
+      });
+
+      for (let c = 0; c < chunks.length; c++) {
+        const chunk = chunks[c];
+        const chunkLabel = chunks.length > 1 ? ` (batch ${c + 1}/${chunks.length})` : '';
+        importBtn.textContent = `Importing… ${processed}/${valid.length}${chunkLabel}`;
+
+        try {
+          const res = await fetch('/api/create-vouchers', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              username,
+              password,
+              apiBase: getApiBase(),
+              storeId: Number(storeId),
+              rows: chunk.map(toPayload),
+            }),
+          });
+          const body = await res.json();
+          if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+
+          body.results.forEach((result, vi) => {
+            const idx = parsedRows.findIndex(r => r === chunk[vi]);
+            if (result.ok) {
+              updateRowStatus(idx, 'created', '');
+              parsedRows[idx]._errors = [];
+              ok++;
+            } else {
+              updateRowStatus(idx, 'failed', result.error || 'unknown error');
+              err++;
+            }
+            processed++;
+            progressFill.style.width = `${Math.round((processed / valid.length) * 100)}%`;
+            sumOk.textContent = ok;
+            sumErr.textContent = err;
+          });
+        } catch (e) {
+          // Whole-chunk failure (network, function timeout, etc.) — mark
+          // every row in this chunk as failed so the user knows exactly
+          // which ones to retry.
+          chunk.forEach(r => {
+            const idx = parsedRows.findIndex(x => x === r);
+            updateRowStatus(idx, 'failed', e.message);
+            err++;
+            processed++;
+          });
+          progressFill.style.width = `${Math.round((processed / valid.length) * 100)}%`;
+          sumErr.textContent = err;
+          // Surface once; keep going with remaining chunks so the user gets
+          // partial results instead of losing everything.
+          if (c === chunks.length - 1) {
+            alert(`Batch ${c + 1}/${chunks.length} failed: ${e.message}\n\nOther batches in this run may have succeeded — check the per-row status.`);
+          }
+        }
+      }
+
+      importBtn.disabled = false;
+      importBtn.textContent = `Import ${valid.length} voucher${valid.length === 1 ? '' : 's'}`;
     });
   </script>
 </body>

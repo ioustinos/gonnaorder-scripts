@@ -159,7 +159,10 @@ script means swapping one `<div class="card soon">` placeholder for an
 
 ## Conventions
 
-- One function = one bulk operation. Sequential calls inside. Cap batches.
+- One function = one bulk operation. Sequential calls inside. Cap batches —
+  voucher importer is 300 rows per function call, chunked client-side for
+  larger imports so each function invocation stays well inside Netlify's
+  10s budget.
 - Validate inputs client-side AND server-side. Client side is for UX
   (show errors before submit); server side is the authoritative gate.
 - Show per-row outcomes — never just "done" or "failed".

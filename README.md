@@ -84,7 +84,7 @@ to `class="card live"` with the right `href`).
 - One Netlify site per repo.
 - Credentials never in the repo — only in Netlify env vars.
 - Sequential API calls inside the function (simpler, stays under the 10s budget for normal batches).
-- Per-batch cap: 500 rows.
+- Per-function-call cap: 300 rows. The UI chunks larger imports automatically and shows progress across batches.
 
 ## Credentials
 
