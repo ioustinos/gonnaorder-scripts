@@ -40,6 +40,20 @@ Initial design stored `GONNAORDER_USERNAME` and `GONNAORDER_PASSWORD` as Netlify
 
 Env vars deleted from Netlify. Tool is now usable by anyone with a GonnaOrder account.
 
+### Duplicate detection + GonnaOrder error envelope properly parsed
+
+Real-world 1683-row import surfaced two related issues on 2026-06-05:
+
+1. **My error parser was wrong.** GonnaOrder returns errors as `{ errors: [{ message, code }], ... }`, but `create-vouchers.js` was checking `parsed.detail || parsed.message || parsed.error` — none of which exist on their responses, so the user saw raw HTTP-400 JSON instead of friendly text.
+2. **Chunk timeouts had been silently lying.** The previous 1683-row run reported "1500 failed". Re-importing showed all 1683 returning `CUSTOMER_VOUCHER_ALREADY_PRESENT` — the chunks had actually succeeded server-side but Netlify's 10s function timeout cut the response short.
+
+Fixes:
+- `create-vouchers.js`: extract `errors[0].message` and `errors[0].code` properly; thrown Error now carries `errorCode` + `httpStatus` properties.
+- `vouchers/index.html`: new `duplicate` status (yellow `c4b5fd` badge) for `CUSTOMER_VOUCHER_ALREADY_PRESENT`, distinct from red `failed`. Summary counters split into `Total / Created / Duplicates / Failed`.
+- CLAUDE.md: documents the error envelope shape, the known error codes worth special-casing, and the chunk-timeout lying behaviour.
+
+The chunk-timeout-lying issue is now documented (so future-Claude knows to expect this) but not "fixed" structurally — a real fix would require either splitting the function into a stateful queue or pre-fetching existing codes via list-vouchers and skipping client-side. Both are bigger work. For now, the duplicate counter makes the recovery obvious: re-import and the 'duplicate' column tells you what was actually created server-side.
+
 ### Post-deploy fix: wrong enum strings (WELCOME5 row)
 
 First live test (store 5770) imported 2/3 sample rows. The third — `WELCOME5`, the only non-percentile non-multi-use row — returned `400 "Failed to read request"`.

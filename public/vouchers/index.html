@@ -60,6 +60,7 @@
     .badge.ok { background: rgba(52, 199, 89, 0.15); color: var(--ok); }
     .badge.err { background: rgba(255, 69, 58, 0.15); color: var(--err); }
     .badge.warn { background: rgba(255, 176, 32, 0.15); color: var(--warn); }
+    .badge.dup  { background: rgba(176, 132, 255, 0.15); color: #c4b5fd; }
     .badge.idle { background: var(--panel-2); color: var(--muted); }
     .progress { height: 4px; background: var(--panel-2); border-radius: 999px; overflow: hidden; margin-top: 16px; }
     .progress .bar { height: 100%; background: var(--accent); width: 0; transition: width 0.2s; }
@@ -144,6 +145,7 @@
       <div class="summary" id="summary" style="display:none;">
         <div>Total: <span class="n" id="sumTotal">0</span></div>
         <div>Created: <span class="n" id="sumOk" style="color:var(--ok);">0</span></div>
+        <div>Duplicates: <span class="n" id="sumDup" style="color:#c4b5fd;">0</span></div>
         <div>Failed: <span class="n" id="sumErr" style="color:var(--err);">0</span></div>
       </div>
     </div>
@@ -169,6 +171,7 @@
     const summaryEl = document.getElementById('summary');
     const sumTotal = document.getElementById('sumTotal');
     const sumOk = document.getElementById('sumOk');
+    const sumDup = document.getElementById('sumDup');
     const sumErr = document.getElementById('sumErr');
 
     // Remember username (only) across sessions so the user just types their password each time.
@@ -297,6 +300,7 @@
         invalid: '<span class="badge err">invalid</span>',
         importing: '<span class="badge warn">importing…</span>',
         created: '<span class="badge ok">created</span>',
+        duplicate: '<span class="badge dup">duplicate</span>',
         failed: '<span class="badge err">failed</span>',
       };
       return map[s] || s;
@@ -379,9 +383,10 @@
       importBtn.disabled = true;
       progressBar.style.display = '';
       summaryEl.style.display = '';
-      let ok = 0, err = 0, processed = 0;
+      let ok = 0, dup = 0, err = 0, processed = 0;
       sumTotal.textContent = valid.length;
       sumOk.textContent = '0';
+      sumDup.textContent = '0';
       sumErr.textContent = '0';
 
       // Mark all valid rows as importing
@@ -433,6 +438,11 @@
               updateRowStatus(idx, 'created', '');
               parsedRows[idx]._errors = [];
               ok++;
+            } else if (result.errorCode === 'CUSTOMER_VOUCHER_ALREADY_PRESENT') {
+              // Idempotent no-op — voucher already exists in the store.
+              // Not really a failure; show in its own bucket.
+              updateRowStatus(idx, 'duplicate', 'Already exists in store');
+              dup++;
             } else {
               updateRowStatus(idx, 'failed', result.error || 'unknown error');
               err++;
@@ -440,6 +450,7 @@
             processed++;
             progressFill.style.width = `${Math.round((processed / valid.length) * 100)}%`;
             sumOk.textContent = ok;
+            sumDup.textContent = dup;
             sumErr.textContent = err;
           });
         } catch (e) {

@@ -68,7 +68,13 @@ export const handler = async (event) => {
       const voucher = await createVoucher(goApi, jwt, storeId, row);
       results.push({ code: row.code, ok: true, voucherId: voucher?.id ?? null });
     } catch (e) {
-      results.push({ code: row.code, ok: false, error: e.message });
+      results.push({
+        code: row.code,
+        ok: false,
+        error: e.message,
+        errorCode: e.errorCode || null,
+        httpStatus: e.httpStatus || null,
+      });
     }
   }
 
@@ -129,13 +135,27 @@ async function createVoucher(goApi, jwt, storeId, row) {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    // Try to pull a friendlier message out of the GonnaOrder error envelope.
+    // GonnaOrder's error envelope:
+    //   { status, time, path, method, errors: [{ message, code }], tenant }
+    // Pull the first error's message + code; fall back through other common
+    // shapes; last resort is the raw text.
     let detail = text.slice(0, 300);
+    let errorCode = null;
     try {
       const parsed = JSON.parse(text);
-      detail = parsed.detail || parsed.message || parsed.error || detail;
+      const first = parsed?.errors?.[0];
+      errorCode = first?.code || null;
+      detail = first?.message
+            || first?.code
+            || parsed.detail
+            || parsed.message
+            || parsed.error
+            || detail;
     } catch {}
-    throw new Error(`HTTP ${res.status}: ${detail}`);
+    const err = new Error(`HTTP ${res.status}: ${detail}`);
+    err.errorCode = errorCode;
+    err.httpStatus = res.status;
+    throw err;
   }
   // Some endpoints return 204; others return the created object.
   if (res.status === 204) return {};

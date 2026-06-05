@@ -96,6 +96,25 @@ server-side secrets (Sentry DSN, etc.), they go here.
     always means one of the enum strings above is wrong — the API
     deserializer rejects unknown enum values with that opaque message
     instead of a field-level error.
+  - Error envelope shape for validation/conflict errors:
+    `{ status, time, path, method, errors: [{ message, code }], tenant }`
+    — extract `errors[0].message` for human-readable text and
+    `errors[0].code` for programmatic branching (NOT `detail` / `message`
+    / `error` at the top level — those don't exist on GonnaOrder
+    responses, my early code guessed wrong).
+  - Known error codes worth handling specially:
+    - `CUSTOMER_VOUCHER_ALREADY_PRESENT` — voucher with that code already
+      exists in the store. Idempotent no-op; the importer surfaces this as
+      a yellow `duplicate` status (NOT red `failed`) and has a separate
+      counter for it.
+  - **Chunk timeouts ≠ server-side failure.** When a Netlify function
+    invocation times out at 10s, GonnaOrder has typically already created
+    the vouchers it processed up to that point — the function just didn't
+    get to return them. Marking the whole chunk as "failed" client-side is
+    misleading; a re-import will surface the actual server state via
+    `CUSTOMER_VOUCHER_ALREADY_PRESENT` per row. The user lived through
+    this on 2026-06-04 (1683-row import: previous run's "1500 failed"
+    were actually all server-side successes).
 
 ## Catalogue API notes
 
