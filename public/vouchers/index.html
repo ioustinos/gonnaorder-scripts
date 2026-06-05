@@ -356,9 +356,11 @@
     });
 
     // Chunk size for the import — must match the server-side cap in
-    // netlify/functions/create-vouchers.js. Picked to fit each function
-    // invocation comfortably inside Netlify's 10s budget.
-    const BATCH_SIZE = 300;
+    // netlify/functions/create-vouchers.js. Observed GonnaOrder voucher-
+    // create latency runs 50–120ms; 100 rows/chunk gives ~3–5x headroom
+    // against Netlify's 10s function timeout. 300 was tried first and
+    // burned 5/6 chunks on a real import — don't re-raise.
+    const BATCH_SIZE = 100;
 
     importBtn.addEventListener('click', async () => {
       const username = usernameInput.value.trim();
@@ -443,7 +445,10 @@
         } catch (e) {
           // Whole-chunk failure (network, function timeout, etc.) — mark
           // every row in this chunk as failed so the user knows exactly
-          // which ones to retry.
+          // which ones to retry. NB: with a function timeout, some rows
+          // may have actually been created server-side before the timeout
+          // hit — re-importing them will return a "voucher already exists"
+          // per-row error from GonnaOrder, which is harmless.
           chunk.forEach(r => {
             const idx = parsedRows.findIndex(x => x === r);
             updateRowStatus(idx, 'failed', e.message);
@@ -452,11 +457,8 @@
           });
           progressFill.style.width = `${Math.round((processed / valid.length) * 100)}%`;
           sumErr.textContent = err;
-          // Surface once; keep going with remaining chunks so the user gets
-          // partial results instead of losing everything.
-          if (c === chunks.length - 1) {
-            alert(`Batch ${c + 1}/${chunks.length} failed: ${e.message}\n\nOther batches in this run may have succeeded — check the per-row status.`);
-          }
+          // Keep going with the next chunk — no popup, the summary at the
+          // bottom (Total / Created / Failed) is the source of truth.
         }
       }
 

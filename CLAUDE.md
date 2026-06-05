@@ -160,9 +160,11 @@ script means swapping one `<div class="card soon">` placeholder for an
 ## Conventions
 
 - One function = one bulk operation. Sequential calls inside. Cap batches —
-  voucher importer is 300 rows per function call, chunked client-side for
+  voucher importer is 100 rows per function call, chunked client-side for
   larger imports so each function invocation stays well inside Netlify's
-  10s budget.
+  10s budget. (300 was tried first and burned 5/6 chunks on a real 1683-row
+  import — GonnaOrder voucher-create latency is 50–120ms per call, not the
+  ~30ms guess. Don't re-raise without re-measuring.)
 - Validate inputs client-side AND server-side. Client side is for UX
   (show errors before submit); server side is the authoritative gate.
 - Show per-row outcomes — never just "done" or "failed".

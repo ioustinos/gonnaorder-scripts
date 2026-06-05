@@ -41,8 +41,8 @@ export const handler = async (event) => {
   if (!Array.isArray(rows) || !rows.length) {
     return json(400, { error: "rows must be a non-empty array" });
   }
-  if (rows.length > 300) {
-    return json(400, { error: "Maximum 300 rows per batch — the UI chunks larger imports automatically" });
+  if (rows.length > 100) {
+    return json(400, { error: "Maximum 100 rows per batch — the UI chunks larger imports automatically" });
   }
 
   const apiBase = normalizeApiBase(body.apiBase);
@@ -56,10 +56,12 @@ export const handler = async (event) => {
     return json(502, { error: `GonnaOrder auth failed: ${e.message}` });
   }
 
-  // 2. Create vouchers sequentially. Sequential keeps things simple and avoids
-  //    overwhelming the GonnaOrder API; the UI caps each function call at
-  //    300 rows so we stay well inside Netlify's 10s function budget assuming
-  //    ~30ms/request. Larger imports are chunked client-side.
+  // 2. Create vouchers sequentially. Sequential keeps things simple and
+  //    avoids overwhelming the GonnaOrder API. Real-world GonnaOrder voucher-
+  //    create latency runs 50–120ms (often >100ms) and Netlify caps functions
+  //    at 10s, so 300 was too aggressive — observed 5/6 chunks timing out on
+  //    an 1683-row import 2026-06-04. Capping at 100 gives ~3–5x headroom.
+  //    Larger imports are chunked client-side by `public/vouchers/index.html`.
   const results = [];
   for (const row of rows) {
     try {

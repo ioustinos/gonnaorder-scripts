@@ -12,7 +12,7 @@
 First script: bulk voucher importer.
 
 - Frontend (`public/index.html`) loads SheetJS from CDN, parses CSV or XLSX client-side, validates per-row before submit. Drag-and-drop or click-to-choose.
-- Backend (`netlify/functions/create-vouchers.js`) authenticates once per batch, creates vouchers sequentially. Cap: 300 rows per function call; larger CSV imports are chunked client-side. Returns per-row results.
+- Backend (`netlify/functions/create-vouchers.js`) authenticates once per batch, creates vouchers sequentially. Cap: 100 rows per function call; larger CSV imports are chunked client-side. Returns per-row results. (Initially 500, dropped to 300 in c5f4c98 to fit Netlify's 10s function budget, then dropped again to 100 in 2026-06-04 after a 1683-row import burned 5 of 6 chunks — GonnaOrder voucher-create latency is 50–120ms per call, not the optimistic ~30ms originally estimated.)
 - Sample file `public/sample-vouchers.csv` with all columns + 3 example rows.
 - CSV columns mirror the GonnaOrder voucher form fields: `code, discount, discountType, type, orderMinAmount, startDate, endDate, isActive, externalId`. Only `code` and `discount` are required; everything else has sensible defaults matching the original n8n flow.
 
