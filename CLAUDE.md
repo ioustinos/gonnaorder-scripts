@@ -161,13 +161,19 @@ re-tested from a dev sandbox — the sandbox has no network route to
   - **The date window filters on `wishTime`** (requested delivery/pickup
     time) — full ISO strings — NOT order creation/submission time. It is the
     only date filter the order-search API exposes that we know of.
+  - `status` and `isReady` are **both required** by the request deserializer.
+    Omitting either returns an opaque `400 "Failed to read request"` (same
+    failure family as the voucher bad-enum trap). Mirror the proven n8n body
+    shape: always send both fields.
   - `status` is an **array** (multi-select). Valid values:
-    `SUBMITTED`, `CLOSED`, `DRAFT`, `UPDATED`, `RECEIVED`. Omit the array
-    (or send empty) ⇒ all statuses. `orders-export.js` filters input against
-    this whitelist.
-  - `isReady` — the n8n flow pins this to `false` for its own narrow purpose.
-    `orders-export.js` deliberately **omits** it so a general export doesn't
-    silently drop ready orders. Don't reinstate it as a hard-coded filter.
+    `SUBMITTED`, `CLOSED`, `DRAFT`, `UPDATED`, `RECEIVED`. `orders-export.js`
+    filters input against this whitelist and, if nothing is selected, sends
+    **all five** (== "all statuses") rather than omitting the field.
+  - `isReady` is a **boolean** filter with no "both" value. To export
+    everything, `orders-export.js` runs the search **twice** (`isReady:false`
+    then `true`) and merges by `uuid`. The caller can pin `isReady` to skip
+    the second pass. Do NOT omit the field — that's what caused the original
+    `400 "Failed to read request"` (the n8n flow always sends `isReady:false`).
   - Response shape: `{ data: [...], ... }` — orders live under `data` (the
     n8n "Clean up array" node reads `items[0].json.data`). `orders-export.js`
     falls back to `content` / a bare array just in case.

@@ -80,47 +80,65 @@ async function handleSearch(goApi, body) {
 
   let status = Array.isArray(body.status) ? body.status : [];
   status = status.filter((s) => VALID_STATUSES.includes(s));
+  // Always send a non-empty status array — sending all five == "all statuses".
+  // GonnaOrder's request deserializer rejects a body missing expected fields
+  // with an opaque 400 "Failed to read request", so we mirror the proven n8n
+  // request shape (status + isReady always present) rather than omitting them.
+  if (!status.length) status = [...VALID_STATUSES];
+
+  // `isReady` is REQUIRED by the search API — omitting it returns the same
+  // opaque 400 "Failed to read request". It is a boolean filter (no "both"
+  // value), so to export EVERYTHING we run the search once per isReady value
+  // and merge by uuid. The caller may pin it (body.isReady true/false) to
+  // skip the second pass.
+  let readyValues;
+  if (body.isReady === true) readyValues = [true];
+  else if (body.isReady === false) readyValues = [false];
+  else readyValues = [false, true]; // default: all orders
 
   const jwt = await authenticate(goApi, username, password);
 
-  // Filter body. `isReady` is deliberately omitted: the n8n flow pins it to
-  // false for its own narrow purpose, but for a general export we must not
-  // constrain it or we'd silently drop ready orders.
-  const filter = {
-    wishTimeFrom: toIso(wishTimeFrom),
-    wishTimeTo: toIso(wishTimeTo),
-  };
-  if (status.length) filter.status = status; // omit ⇒ all statuses
-
-  const orders = [];
-  let page = 0;
+  const wishFrom = toIso(wishTimeFrom);
+  const wishTo = toIso(wishTimeTo);
+  const byUuid = new Map(); // dedupe across the two isReady passes
+  let pagesUsed = 0;
   let truncated = false;
-  for (; page < MAX_PAGES; page++) {
-    const url = `${goApi}/stores/${encodeURIComponent(storeId)}/orders/search`
-      + `?size=${PAGE_SIZE}&page=${page}&sort=wishTime,desc`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${jwt}` },
-      body: JSON.stringify(filter),
-    });
-    if (!res.ok) throw await goError(res);
-    const data = await res.json().catch(() => ({}));
-    const chunk = Array.isArray(data?.data)
-      ? data.data
-      : Array.isArray(data?.content)
-        ? data.content
-        : Array.isArray(data)
-          ? data
-          : [];
-    orders.push(...chunk);
-    if (chunk.length < PAGE_SIZE) break; // last page
-    if (page === MAX_PAGES - 1) truncated = true;
+
+  for (const isReady of readyValues) {
+    const filter = { wishTimeFrom: wishFrom, wishTimeTo: wishTo, status, isReady };
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const url = `${goApi}/stores/${encodeURIComponent(storeId)}/orders/search`
+        + `?size=${PAGE_SIZE}&page=${page}&sort=wishTime,desc`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${jwt}` },
+        body: JSON.stringify(filter),
+      });
+      if (!res.ok) throw await goError(res);
+      const data = await res.json().catch(() => ({}));
+      const chunk = Array.isArray(data?.data)
+        ? data.data
+        : Array.isArray(data?.content)
+          ? data.content
+          : Array.isArray(data)
+            ? data
+            : [];
+      pagesUsed++;
+      for (const o of chunk) {
+        const key = o && (o.uuid ?? o.orderToken ?? JSON.stringify(o));
+        if (!byUuid.has(key)) byUuid.set(key, o);
+      }
+      if (chunk.length < PAGE_SIZE) break; // last page for this isReady value
+      if (page === MAX_PAGES - 1) truncated = true;
+    }
   }
+
+  const orders = [...byUuid.values()];
 
   return json(200, {
     orders,
     total: orders.length,
-    pages: Math.min(page + 1, MAX_PAGES),
+    pages: pagesUsed,
     truncated,
     jwt, // reused by the client for detail calls; not persisted server-side
   });
