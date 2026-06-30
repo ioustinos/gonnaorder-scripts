@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Orders Export · GonnaOrder Scripts</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%A6%3C/text%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #1a1d24;
+      --panel-2: #232730;
+      --border: #2e333d;
+      --text: #e8eaed;
+      --muted: #9aa0a6;
+      --accent: #4f8cff;
+      --ok: #34c759;
+      --err: #ff453a;
+      --warn: #ffb020;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 32px 20px 80px; }
+    .nav { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+    .nav a { color: var(--muted); text-decoration: none; }
+    .nav a:hover { color: var(--accent); }
+    header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+    h1 { font-size: 22px; margin: 0; font-weight: 600; }
+    .tag { color: var(--muted); font-size: 13px; }
+    p.lead { color: var(--muted); margin: 4px 0 28px; }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+    input[type=text], input[type=number], input[type=password], input[type=date] {
+      width: 100%; background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+      padding: 10px 12px; border-radius: 8px; font: inherit; outline: none;
+    }
+    input:focus { border-color: var(--accent); }
+    .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+    .row > div { flex: 1 1 200px; }
+    button {
+      background: var(--accent); color: white; border: 0; padding: 10px 16px;
+      border-radius: 8px; font: inherit; font-weight: 500; cursor: pointer;
+    }
+    button:hover { filter: brightness(1.1); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.secondary { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); }
+    .statuses { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chk { display: inline-flex; align-items: center; gap: 6px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; cursor: pointer; font-size: 13px; color: var(--text); user-select: none; }
+    .chk input { accent-color: var(--accent); }
+    .toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: var(--text); }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+    th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--border); vertical-align: top; white-space: nowrap; }
+    th { color: var(--muted); font-weight: 500; background: var(--panel-2); position: sticky; top: 0; }
+    .preview-scroll { max-height: 420px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; }
+    .badge.ok { background: rgba(52, 199, 89, 0.15); color: var(--ok); }
+    .badge.err { background: rgba(255, 69, 58, 0.15); color: var(--err); }
+    .badge.warn { background: rgba(255, 176, 32, 0.15); color: var(--warn); }
+    .progress { height: 4px; background: var(--panel-2); border-radius: 999px; overflow: hidden; margin-top: 16px; }
+    .progress .bar { height: 100%; background: var(--accent); width: 0; transition: width 0.2s; }
+    .summary { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+    .summary > div { background: var(--panel-2); padding: 10px 14px; border-radius: 8px; font-size: 13px; }
+    .summary .n { font-weight: 600; font-size: 16px; color: var(--text); }
+    .banner { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-top: 12px; }
+    .banner.warn { background: rgba(255, 176, 32, 0.12); border: 1px solid rgba(255,176,32,0.3); color: #ffd27a; }
+    .banner.err { background: rgba(255, 69, 58, 0.12); border: 1px solid rgba(255,69,58,0.3); color: #ff9a91; }
+    a { color: var(--accent); }
+    .footer { color: var(--muted); font-size: 12px; margin-top: 32px; text-align: center; }
+    code { background: var(--panel-2); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+    .help { color: var(--muted); font-size: 12px; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="nav"><a href="/">← All scripts</a></div>
+    <header>
+      <h1>📦 Orders Export</h1>
+      <span class="tag">GonnaOrder Scripts</span>
+    </header>
+    <p class="lead">Pull all orders in a date window from a GonnaOrder store and export them to CSV.</p>
+
+    <div class="panel">
+      <div class="row" style="margin-bottom: 14px;">
+        <div>
+          <label for="username">GonnaOrder email</label>
+          <input type="text" id="username" autocomplete="username" placeholder="you@yourdomain.com" />
+        </div>
+        <div>
+          <label for="password">GonnaOrder password</label>
+          <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" />
+        </div>
+        <div style="flex: 0 0 200px;">
+          <label for="storeId">Store ID</label>
+          <input type="number" id="storeId" placeholder="e.g. 5909" min="1" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="apiBase">API base URL <span style="text-transform:none; color:var(--muted); font-weight:normal;">(advanced)</span></label>
+          <input type="text" id="apiBase" placeholder="https://admin.gonnaorder.com" />
+          <div class="help">Defaults to <code>https://admin.gonnaorder.com</code>. Override only for a non-prod instance.</div>
+        </div>
+      </div>
+      <div class="help" style="margin-top: 12px;">
+        🔒 Credentials are sent over HTTPS to our serverless function, which uses them once to get a session
+        token from GonnaOrder. They are not stored on the server. Your email is remembered in this browser; your password is not.
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="row" style="margin-bottom: 14px;">
+        <div>
+          <label for="fromDate">Wish time from</label>
+          <input type="date" id="fromDate" />
+        </div>
+        <div>
+          <label for="toDate">Wish time to</label>
+          <input type="date" id="toDate" />
+        </div>
+      </div>
+      <div class="help" style="margin-bottom: 16px;">
+        The window filters on each order's <strong>wish time</strong> (the requested delivery / pickup time), not its creation time —
+        that's the only date filter GonnaOrder's order-search API exposes. The window is inclusive and interpreted in <strong>UTC</strong>
+        (<code>from</code> 00:00:00 → <code>to</code> 23:59:59).
+      </div>
+
+      <label>Statuses</label>
+      <div class="statuses" id="statuses"></div>
+      <div class="help" style="margin-top: 6px;">Tick the statuses to include. Unticking all is treated as “all statuses”.</div>
+
+      <div style="margin-top: 16px;">
+        <label class="toggle"><input type="checkbox" id="includeItems" /> Include line items <span style="color:var(--muted);">(slower — fetches each order individually)</span></label>
+      </div>
+
+      <div class="row" style="margin-top: 18px;">
+        <div style="flex: 0 0 auto;">
+          <button type="button" id="fetchBtn">Fetch orders</button>
+        </div>
+        <div style="flex: 0 0 auto;">
+          <button type="button" class="secondary" id="exportBtn" disabled>⬇ Export CSV</button>
+        </div>
+      </div>
+
+      <div class="progress" id="progressBar" style="display:none;"><div class="bar" id="progressFill"></div></div>
+      <div id="banner"></div>
+      <div class="summary" id="summary" style="display:none;">
+        <div>Orders: <span class="n" id="sumTotal">0</span></div>
+        <div>Pages: <span class="n" id="sumPages">0</span></div>
+        <div id="itemsBox" style="display:none;">Items fetched: <span class="n" id="sumItems" style="color:var(--ok);">0</span></div>
+        <div id="itemsErrBox" style="display:none;">Item errors: <span class="n" id="sumItemErr" style="color:var(--err);">0</span></div>
+      </div>
+    </div>
+
+    <div class="panel" id="previewPanel" style="display:none;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <strong id="previewTitle">Preview</strong>
+        <span class="help" id="previewNote"></span>
+      </div>
+      <div class="preview-scroll">
+        <table id="previewTable"></table>
+      </div>
+    </div>
+
+    <div class="footer">
+      Calls <code>/.netlify/functions/orders-export</code> · source: <a href="https://github.com/ioustinos/gonnaorder-scripts" target="_blank" rel="noreferrer">github.com/ioustinos/gonnaorder-scripts</a>
+    </div>
+  </div>
+
+  <script>
+    const STATUSES = ['SUBMITTED', 'CLOSED', 'DRAFT', 'UPDATED', 'RECEIVED'];
+    const DETAIL_CHUNK = 40; // must stay ≤ server cap in orders-export.js
+
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const storeIdInput = document.getElementById('storeId');
+    const apiBaseInput = document.getElementById('apiBase');
+    const fromDate = document.getElementById('fromDate');
+    const toDate = document.getElementById('toDate');
+    const includeItems = document.getElementById('includeItems');
+    const fetchBtn = document.getElementById('fetchBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const progressBar = document.getElementById('progressBar');
+    const progressFill = document.getElementById('progressFill');
+    const bannerEl = document.getElementById('banner');
+    const summaryEl = document.getElementById('summary');
+    const sumTotal = document.getElementById('sumTotal');
+    const sumPages = document.getElementById('sumPages');
+    const itemsBox = document.getElementById('itemsBox');
+    const itemsErrBox = document.getElementById('itemsErrBox');
+    const sumItems = document.getElementById('sumItems');
+    const sumItemErr = document.getElementById('sumItemErr');
+    const previewPanel = document.getElementById('previewPanel');
+    const previewTable = document.getElementById('previewTable');
+    const previewTitle = document.getElementById('previewTitle');
+    const previewNote = document.getElementById('previewNote');
+
+    // localStorage (shared keys with the other tools)
+    const REMEMBER_KEY = 'gonnaorder.username';
+    const API_BASE_KEY = 'gonnaorder.apiBase';
+    const STORE_KEY = 'gonnaorder.storeId';
+    const DEFAULT_API_BASE = 'https://admin.gonnaorder.com';
+    try {
+      const u = localStorage.getItem(REMEMBER_KEY); if (u) usernameInput.value = u;
+      apiBaseInput.value = localStorage.getItem(API_BASE_KEY) || DEFAULT_API_BASE;
+      const s = localStorage.getItem(STORE_KEY); if (s) storeIdInput.value = s;
+    } catch {}
+    usernameInput.addEventListener('change', () => { try { localStorage.setItem(REMEMBER_KEY, usernameInput.value.trim()); } catch {} });
+    apiBaseInput.addEventListener('change', () => { try { localStorage.setItem(API_BASE_KEY, apiBaseInput.value.trim() || DEFAULT_API_BASE); } catch {} });
+    storeIdInput.addEventListener('change', () => { try { localStorage.setItem(STORE_KEY, storeIdInput.value.trim()); } catch {} });
+    function getApiBase() { return apiBaseInput.value.trim() || DEFAULT_API_BASE; }
+
+    // Status checkboxes (all ticked by default)
+    const statusesEl = document.getElementById('statuses');
+    STATUSES.forEach(s => {
+      const lbl = document.createElement('label');
+      lbl.className = 'chk';
+      lbl.innerHTML = `<input type="checkbox" value="${s}" checked /> ${s}`;
+      statusesEl.appendChild(lbl);
+    });
+    function selectedStatuses() {
+      return [...statusesEl.querySelectorAll('input:checked')].map(i => i.value);
+    }
+
+    // Default the date window to today (UTC)
+    (function () {
+      const now = new Date();
+      const iso = now.toISOString().slice(0, 10);
+      fromDate.value = iso; toDate.value = iso;
+    })();
+
+    let rows = []; // raw order objects (search results, optionally replaced by full detail)
+
+    function setBanner(msg, kind) {
+      bannerEl.innerHTML = msg ? `<div class="banner ${kind || 'warn'}">${msg}</div>` : '';
+    }
+
+    fetchBtn.addEventListener('click', async () => {
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value;
+      const storeId = storeIdInput.value.trim();
+      if (!username) { alert('Enter your GonnaOrder email first.'); usernameInput.focus(); return; }
+      if (!password) { alert('Enter your GonnaOrder password first.'); passwordInput.focus(); return; }
+      if (!storeId) { alert('Enter a Store ID first.'); storeIdInput.focus(); return; }
+      if (!fromDate.value || !toDate.value) { alert('Pick a from and to date.'); return; }
+      if (fromDate.value > toDate.value) { alert('“From” date must be on or before “To” date.'); return; }
+      try { localStorage.setItem(REMEMBER_KEY, username); localStorage.setItem(STORE_KEY, storeId); } catch {}
+
+      rows = [];
+      exportBtn.disabled = true;
+      previewPanel.style.display = 'none';
+      summaryEl.style.display = 'none';
+      itemsBox.style.display = 'none';
+      itemsErrBox.style.display = 'none';
+      setBanner('');
+      fetchBtn.disabled = true;
+      fetchBtn.textContent = 'Fetching…';
+      progressBar.style.display = '';
+      progressFill.style.width = '15%';
+
+      const wishTimeFrom = `${fromDate.value}T00:00:00.000Z`;
+      const wishTimeTo = `${toDate.value}T23:59:59.999Z`;
+
+      try {
+        // 1) Search — server pages through everything in the window.
+        const res = await fetch('/api/orders-export', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'search',
+            username, password,
+            apiBase: getApiBase(),
+            storeId: Number(storeId),
+            wishTimeFrom, wishTimeTo,
+            status: selectedStatuses(),
+          }),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+
+        rows = Array.isArray(body.orders) ? body.orders : [];
+        summaryEl.style.display = '';
+        sumTotal.textContent = body.total ?? rows.length;
+        sumPages.textContent = body.pages ?? '–';
+        progressFill.style.width = '60%';
+
+        if (body.truncated) {
+          setBanner('⚠ Hit the page cap — some orders may be missing. Narrow the date window and fetch again.', 'warn');
+        }
+
+        if (!rows.length) {
+          setBanner('No orders found for this window and status selection.', 'warn');
+          progressBar.style.display = 'none';
+          fetchBtn.disabled = false; fetchBtn.textContent = 'Fetch orders';
+          return;
+        }
+
+        // 2) Optionally enrich with full order detail (line items).
+        if (includeItems.checked) {
+          const uuids = rows.map(o => o && o.uuid).filter(Boolean);
+          const byUuid = new Map();
+          let fetched = 0, itemErr = 0;
+          itemsBox.style.display = '';
+          itemsErrBox.style.display = '';
+          const jwt = body.jwt;
+
+          const chunks = [];
+          for (let i = 0; i < uuids.length; i += DETAIL_CHUNK) chunks.push(uuids.slice(i, i + DETAIL_CHUNK));
+          for (let c = 0; c < chunks.length; c++) {
+            fetchBtn.textContent = `Fetching items… ${fetched}/${uuids.length}`;
+            try {
+              const dres = await fetch('/api/orders-export', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({
+                  mode: 'detail',
+                  jwt, username, password, // jwt preferred; creds are fallback if it expired
+                  apiBase: getApiBase(),
+                  storeId: Number(storeId),
+                  uuids: chunks[c],
+                }),
+              });
+              const dbody = await dres.json();
+              if (!dres.ok) throw new Error(dbody.error || `HTTP ${dres.status}`);
+              (dbody.details || []).forEach(d => {
+                if (d.ok && d.order) { byUuid.set(d.uuid, d.order); fetched++; }
+                else itemErr++;
+              });
+            } catch (e) {
+              itemErr += chunks[c].length;
+            }
+            sumItems.textContent = fetched;
+            sumItemErr.textContent = itemErr;
+            progressFill.style.width = `${60 + Math.round((c + 1) / chunks.length * 40)}%`;
+          }
+          // Replace each row with its full detail object where we got one.
+          rows = rows.map(o => (o && byUuid.get(o.uuid)) || o);
+        }
+
+        progressFill.style.width = '100%';
+        renderPreview();
+        exportBtn.disabled = false;
+      } catch (e) {
+        setBanner('Error: ' + e.message, 'err');
+        progressBar.style.display = 'none';
+      } finally {
+        fetchBtn.disabled = false;
+        fetchBtn.textContent = 'Fetch orders';
+        setTimeout(() => { progressBar.style.display = 'none'; progressFill.style.width = '0%'; }, 600);
+      }
+    });
+
+    // ── flatten + CSV ──────────────────────────────────────────────────────
+    // Recursively flatten nested objects to dot-keys. Arrays are JSON-stringified
+    // into a single cell so nothing is lost and column count stays stable.
+    function flatten(obj, prefix, out) {
+      out = out || {};
+      prefix = prefix || '';
+      if (obj === null || obj === undefined) { if (prefix) out[prefix] = ''; return out; }
+      if (Array.isArray(obj)) { out[prefix] = JSON.stringify(obj); return out; }
+      if (typeof obj === 'object') {
+        const keys = Object.keys(obj);
+        if (!keys.length && prefix) { out[prefix] = ''; return out; }
+        keys.forEach(k => flatten(obj[k], prefix ? `${prefix}.${k}` : k, out));
+        return out;
+      }
+      out[prefix] = obj;
+      return out;
+    }
+
+    function buildCsv(records) {
+      const flat = records.map(r => flatten(r));
+      // Union of all keys, first-seen order preserved.
+      const keys = [];
+      const seen = new Set();
+      flat.forEach(f => Object.keys(f).forEach(k => { if (!seen.has(k)) { seen.add(k); keys.push(k); } }));
+      const esc = v => {
+        if (v === null || v === undefined) return '';
+        const s = String(v);
+        return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      };
+      const lines = [keys.map(esc).join(',')];
+      flat.forEach(f => lines.push(keys.map(k => esc(f[k])).join(',')));
+      return lines.join('\r\n');
+    }
+
+    exportBtn.addEventListener('click', () => {
+      if (!rows.length) return;
+      const csv = buildCsv(rows);
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }); // BOM for Excel
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const store = storeIdInput.value.trim() || 'store';
+      a.href = url;
+      a.download = `orders-${store}-${fromDate.value}_${toDate.value}.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+
+    // ── preview ────────────────────────────────────────────────────────────
+    // Show a readable subset of common columns; fall back to first flattened keys.
+    const PREFERRED = ['uuid', 'orderNumber', 'wishTime', 'customerName', 'status', 'paymentStatus',
+      'totalNonDiscountedPrice', 'totalDiscountedPrice', 'voucherCode', 'voucherDiscount', 'orderToken'];
+    function renderPreview() {
+      previewPanel.style.display = '';
+      const shown = rows.slice(0, 100);
+      const flat = shown.map(r => flatten(r));
+      const present = PREFERRED.filter(k => flat.some(f => k in f));
+      let cols = present;
+      if (cols.length < 4) {
+        const extra = [];
+        flat.forEach(f => Object.keys(f).forEach(k => { if (!cols.includes(k) && !extra.includes(k)) extra.push(k); }));
+        cols = cols.concat(extra).slice(0, 12);
+      }
+      previewTitle.textContent = `Preview · ${rows.length} order${rows.length === 1 ? '' : 's'}`;
+      previewNote.textContent = rows.length > shown.length
+        ? `showing first ${shown.length} · CSV export includes all fields & all rows`
+        : `CSV export includes all fields`;
+      let html = '<thead><tr>' + cols.map(c => `<th>${escapeHtml(c)}</th>`).join('') + '</tr></thead><tbody>';
+      flat.forEach(f => {
+        html += '<tr>' + cols.map(c => {
+          let v = f[c];
+          if (v === undefined || v === null) v = '';
+          v = String(v);
+          if (v.length > 60) v = v.slice(0, 60) + '…';
+          return `<td>${escapeHtml(v)}</td>`;
+        }).join('') + '</tr>';
+      });
+      html += '</tbody>';
+      previewTable.innerHTML = html;
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+  </script>
+</body>
+</html>

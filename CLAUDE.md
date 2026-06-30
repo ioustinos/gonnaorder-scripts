@@ -148,6 +148,45 @@ server-side secrets (Sentry DSN, etc.), they go here.
   wired here. If we ever add it, branch on `isInheritedCatalogue` in
   `apply-one` and route to the right endpoint.
 
+## Orders API notes
+
+Source of truth: Ioustinos's live n8n workflow "GonnaOrder Pollfish Order
+Check" (active in production). These endpoints are NOT independently
+re-tested from a dev sandbox — the sandbox has no network route to
+`admin.gonnaorder.com`. Verify against the live deploy.
+
+- Search orders: `POST /api/v1/stores/{storeId}/orders/search?size=&page=&sort=wishTime,desc`
+  (Bearer JWT). Body is a filter object:
+  `{ wishTimeFrom, wishTimeTo, status?: string[], isReady?: boolean }`.
+  - **The date window filters on `wishTime`** (requested delivery/pickup
+    time) — full ISO strings — NOT order creation/submission time. It is the
+    only date filter the order-search API exposes that we know of.
+  - `status` is an **array** (multi-select). Valid values:
+    `SUBMITTED`, `CLOSED`, `DRAFT`, `UPDATED`, `RECEIVED`. Omit the array
+    (or send empty) ⇒ all statuses. `orders-export.js` filters input against
+    this whitelist.
+  - `isReady` — the n8n flow pins this to `false` for its own narrow purpose.
+    `orders-export.js` deliberately **omits** it so a general export doesn't
+    silently drop ready orders. Don't reinstate it as a hard-coded filter.
+  - Response shape: `{ data: [...], ... }` — orders live under `data` (the
+    n8n "Clean up array" node reads `items[0].json.data`). `orders-export.js`
+    falls back to `content` / a bare array just in case.
+  - Pagination: `page` is **0-indexed**; `size` is caller-chosen (n8n used 40;
+    we use 100). We page until a page returns fewer than `size` (last page)
+    or a `MAX_PAGES` safety cap (then `truncated: true`). We do NOT know the
+    real pagination-metadata keys (total/last) — if GonnaOrder ever caps page
+    size below our requested `size`, this under-fetches; re-measure before
+    trusting large windows.
+  - Order-level fields seen in search results: `uuid`, `customerName`,
+    `paymentStatus`, `totalNonDiscountedPrice`, `totalDiscountedPrice`,
+    `orderToken`, `voucherCode`, `voucherDiscount`, `wishTime`.
+- Full order (incl. line items): `GET /api/v1/stores/{storeId}/orders/{uuid}`
+  (Bearer JWT). Returns the order with `orderItems: [{ offer: { name, price },
+  quantity, ... }]`, `comment`, etc. — a superset of the search object. The
+  exporter fetches these only when "Include line items" is ticked, chunked
+  client-side (≤40 uuids/call) and reusing the search JWT to avoid
+  re-authenticating per chunk.
+
 ## Page layout
 
 ```
@@ -157,6 +196,8 @@ public/
     index.html           ← Voucher Importer
   catalogue/
     index.html           ← Catalogue Editor (price / discount / visibility per item, bulk ops)
+  orders/
+    index.html           ← Orders Export (date-window order pull → raw-flatten CSV)
   sample-vouchers.csv    ← shared starter, kept at root so it's /sample-vouchers.csv
 ```
 
