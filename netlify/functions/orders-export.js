@@ -107,15 +107,19 @@ async function handleSearch(goApi, body) {
   for (const isReady of readyValues) {
     const filter = { wishTimeFrom: wishFrom, wishTimeTo: wishTo, status, isReady };
     for (let page = 0; page < MAX_PAGES; page++) {
-      const url = `${goApi}/stores/${encodeURIComponent(storeId)}/orders/search`
-        + `?size=${PAGE_SIZE}&page=${page}&sort=wishTime,desc`;
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${jwt}` },
-        body: JSON.stringify(filter),
-      });
-      if (!res.ok) throw await goError(res);
-      const data = await res.json().catch(() => ({}));
+      const r = await searchOnce(goApi, jwt, storeId, filter, page, PAGE_SIZE);
+      if (!r.ok) {
+        // The search was rejected. Rather than fail with the opaque message,
+        // run a bounded diagnostic so we learn exactly what GonnaOrder accepts.
+        const diagnostic = await diagnose(goApi, jwt, storeId, wishFrom, wishTo);
+        return json(r.status || 400, {
+          error: `HTTP ${r.status}: ${r.message}`,
+          sentBody: filter,
+          rawResponse: r.text ? r.text.slice(0, 600) : "",
+          diagnostic,
+        });
+      }
+      const data = r.data || {};
       const chunk = Array.isArray(data?.data)
         ? data.data
         : Array.isArray(data?.content)
@@ -142,6 +146,69 @@ async function handleSearch(goApi, body) {
     truncated,
     jwt, // reused by the client for detail calls; not persisted server-side
   });
+}
+
+// One search call; never throws — returns { ok, status, data, text, message }.
+async function searchOnce(goApi, jwt, storeId, filter, page, size) {
+  const url = `${goApi}/stores/${encodeURIComponent(storeId)}/orders/search`
+    + `?size=${size}&page=${page}&sort=wishTime,desc`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${jwt}` },
+    body: JSON.stringify(filter),
+  });
+  const text = await res.text().catch(() => "");
+  let data = null;
+  try { data = JSON.parse(text); } catch {}
+  let message = "";
+  if (data && Array.isArray(data.errors) && data.errors[0]) {
+    message = data.errors[0].message || data.errors[0].code || "";
+  }
+  if (!message) message = text.slice(0, 200);
+  return { ok: res.ok, status: res.status, data, text, message };
+}
+
+// Bounded probe set to pinpoint why a search body is rejected. Each probe is a
+// single size=1 call. We learn: does the endpoint work at all for this token/
+// store; is isReady required; is status required; and which status enums the
+// deserializer accepts. The result is returned to the UI verbatim.
+async function diagnose(goApi, jwt, storeId, wishFrom, wishTo) {
+  const base = { wishTimeFrom: wishFrom, wishTimeTo: wishTo };
+  const run = async (label, filter) => {
+    try {
+      const r = await searchOnce(goApi, jwt, storeId, filter, 0, 1);
+      return { label, ok: r.ok, status: r.status, message: r.ok ? "" : r.message };
+    } catch (e) {
+      return { label, ok: false, status: 0, message: e.message };
+    }
+  };
+
+  const out = { probes: [], validStatuses: [], notes: [] };
+
+  // 1) The exact proven-working n8n body.
+  out.probes.push(await run("n8n-exact {status:[CLOSED], isReady:false}",
+    { ...base, status: ["CLOSED"], isReady: false }));
+  // 2) isReady omitted (is it required?)
+  out.probes.push(await run("no isReady {status:[CLOSED]}",
+    { ...base, status: ["CLOSED"] }));
+  // 3) status omitted (is it required?)
+  out.probes.push(await run("no status {isReady:false}",
+    { ...base, isReady: false }));
+  // 4) each status value individually
+  for (const s of VALID_STATUSES) {
+    const r = await run(`status:[${s}], isReady:false`, { ...base, status: [s], isReady: false });
+    out.probes.push(r);
+    if (r.ok) out.validStatuses.push(s);
+  }
+
+  const exact = out.probes[0];
+  if (!exact.ok) {
+    out.notes.push("Even the exact n8n body failed — likely an auth/scope, store-id, or wishTime-format issue rather than the status/isReady fields.");
+  } else {
+    out.notes.push("The exact n8n body works. Valid statuses for this endpoint: "
+      + (out.validStatuses.join(", ") || "(none individually accepted)") + ".");
+  }
+  return out;
 }
 
 // ── detail ──────────────────────────────────────────────────────────────────

@@ -234,6 +234,29 @@
       bannerEl.innerHTML = msg ? `<div class="banner ${kind || 'warn'}">${msg}</div>` : '';
     }
 
+    // Render a rich error, including the server-side diagnostic when present,
+    // so we can see exactly which request GonnaOrder accepts/rejects.
+    function renderError(body) {
+      let html = `<div class="banner err"><strong>Error:</strong> ${escapeHtml(body.error || 'request failed')}`;
+      const d = body.diagnostic;
+      if (d) {
+        html += '<div style="margin-top:10px; font-size:12px;">';
+        if (d.notes && d.notes.length) html += d.notes.map(n => `• ${escapeHtml(n)}`).join('<br>') + '<br><br>';
+        html += '<strong>Probes</strong> (each is a single test call):<br>';
+        (d.probes || []).forEach(p => {
+          const mark = p.ok ? '✅' : '❌';
+          html += `${mark} ${escapeHtml(p.label)} — HTTP ${p.status}${p.message ? ' · ' + escapeHtml(p.message) : ''}<br>`;
+        });
+        if (d.validStatuses) html += `<br><strong>Valid statuses:</strong> ${escapeHtml(d.validStatuses.join(', ') || '(none)')}`;
+        html += '</div>';
+      }
+      if (body.rawResponse) {
+        html += `<div style="margin-top:10px; font-size:11px; opacity:.85;"><strong>Raw response:</strong> <code>${escapeHtml(body.rawResponse)}</code></div>`;
+      }
+      html += '</div>';
+      bannerEl.innerHTML = html;
+    }
+
     fetchBtn.addEventListener('click', async () => {
       const username = usernameInput.value.trim();
       const password = passwordInput.value;
@@ -275,7 +298,12 @@
           }),
         });
         const body = await res.json();
-        if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+        if (!res.ok) {
+          renderError(body);
+          progressBar.style.display = 'none';
+          fetchBtn.disabled = false; fetchBtn.textContent = 'Fetch orders';
+          return;
+        }
 
         rows = Array.isArray(body.orders) ? body.orders : [];
         summaryEl.style.display = '';
