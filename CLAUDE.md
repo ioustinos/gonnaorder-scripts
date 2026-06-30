@@ -161,19 +161,21 @@ re-tested from a dev sandbox — the sandbox has no network route to
   - **The date window filters on `wishTime`** (requested delivery/pickup
     time) — full ISO strings — NOT order creation/submission time. It is the
     only date filter the order-search API exposes that we know of.
-  - `status` and `isReady` are **both required** by the request deserializer.
-    Omitting either returns an opaque `400 "Failed to read request"` (same
-    failure family as the voucher bad-enum trap). Mirror the proven n8n body
-    shape: always send both fields.
-  - `status` is an **array** (multi-select). Valid values:
-    `SUBMITTED`, `CLOSED`, `DRAFT`, `UPDATED`, `RECEIVED`. `orders-export.js`
-    filters input against this whitelist and, if nothing is selected, sends
-    **all five** (== "all statuses") rather than omitting the field.
-  - `isReady` is a **boolean** filter with no "both" value. To export
-    everything, `orders-export.js` runs the search **twice** (`isReady:false`
-    then `true`) and merges by `uuid`. The caller can pin `isReady` to skip
-    the second pass. Do NOT omit the field — that's what caused the original
-    `400 "Failed to read request"` (the n8n flow always sends `isReady:false`).
+  - `status` and `isReady` are **both OPTIONAL** — omitting a field does not
+    filter on it. Verified live 2026-06-30 with a per-status diagnostic
+    (probes "no status" and "no isReady" both returned 200). An earlier note
+    here claimed they were required; that was wrong.
+  - `status` accepted values: `SUBMITTED`, `CLOSED`, `DRAFT`, `RECEIVED`.
+    **`UPDATED` is NOT accepted** — the deserializer rejects it as an unknown
+    enum and fails the whole request with the opaque `400 "Failed to read
+    request"` (same family as the voucher bad-enum trap). That single bad enum
+    in a default all-statuses array was the real cause of the first 400s.
+  - **Multi-value status arrays are unproven** on this endpoint (the n8n flow
+    only ever sent a single-element array). `orders-export.js` does NOT rely
+    on them: for "all statuses" it omits `status`; for a strict subset it
+    queries each status on its own and merges by `uuid`.
+  - `isReady` is omitted by default (⇒ both ready and not-ready orders). A
+    caller may pin `body.isReady` to `true`/`false`.
   - Response shape: `{ data: [...], ... }` — orders live under `data` (the
     n8n "Clean up array" node reads `items[0].json.data`). `orders-export.js`
     falls back to `content` / a bare array just in case.

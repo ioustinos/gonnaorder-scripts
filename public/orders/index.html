@@ -126,7 +126,7 @@
 
       <label>Statuses</label>
       <div class="statuses" id="statuses"></div>
-      <div class="help" style="margin-top: 6px;">Tick the statuses to include. Unticking all is treated as “all statuses”.</div>
+      <div class="help" style="margin-top: 6px;">Tick the statuses to include. All ticked (or none) = all statuses. A subset is fetched one status at a time and merged. <code>isReady</code> isn't filtered, so both ready and not-ready orders are included.</div>
 
       <div style="margin-top: 16px;">
         <label class="toggle"><input type="checkbox" id="includeItems" /> Include line items <span style="color:var(--muted);">(slower — fetches each order individually)</span></label>
@@ -167,7 +167,9 @@
   </div>
 
   <script>
-    const STATUSES = ['SUBMITTED', 'CLOSED', 'DRAFT', 'UPDATED', 'RECEIVED'];
+    // Status values the orders-search endpoint accepts. UPDATED is excluded —
+    // the API rejects it as an unknown enum (verified 2026-06-30).
+    const STATUSES = ['SUBMITTED', 'CLOSED', 'DRAFT', 'RECEIVED'];
     const DETAIL_CHUNK = 40; // must stay ≤ server cap in orders-export.js
 
     const usernameInput = document.getElementById('username');

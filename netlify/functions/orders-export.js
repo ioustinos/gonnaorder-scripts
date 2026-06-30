@@ -28,8 +28,11 @@
 
 const DEFAULT_API_BASE = "https://admin.gonnaorder.com";
 
-// Valid GonnaOrder order statuses (from Ioustinos). Used to gate input.
-const VALID_STATUSES = ["SUBMITTED", "CLOSED", "DRAFT", "UPDATED", "RECEIVED"];
+// Status values the orders-search endpoint actually accepts. NOTE: "UPDATED"
+// is intentionally absent — the search API rejects it as an unknown enum and
+// fails the whole request with an opaque 400 "Failed to read request"
+// (verified live 2026-06-30 via the per-status diagnostic).
+const VALID_STATUSES = ["SUBMITTED", "CLOSED", "DRAFT", "RECEIVED"];
 
 // Paging: request this many per page. The n8n flow set size freely, so the
 // API honours a caller-chosen size. Stop when a page returns fewer than this
@@ -78,39 +81,37 @@ async function handleSearch(goApi, body) {
     return json(400, { error: "wishTimeFrom and wishTimeTo are required" });
   }
 
-  let status = Array.isArray(body.status) ? body.status : [];
-  status = status.filter((s) => VALID_STATUSES.includes(s));
-  // Always send a non-empty status array — sending all five == "all statuses".
-  // GonnaOrder's request deserializer rejects a body missing expected fields
-  // with an opaque 400 "Failed to read request", so we mirror the proven n8n
-  // request shape (status + isReady always present) rather than omitting them.
-  if (!status.length) status = [...VALID_STATUSES];
-
-  // `isReady` is REQUIRED by the search API — omitting it returns the same
-  // opaque 400 "Failed to read request". It is a boolean filter (no "both"
-  // value), so to export EVERYTHING we run the search once per isReady value
-  // and merge by uuid. The caller may pin it (body.isReady true/false) to
-  // skip the second pass.
-  let readyValues;
-  if (body.isReady === true) readyValues = [true];
-  else if (body.isReady === false) readyValues = [false];
-  else readyValues = [false, true]; // default: all orders
+  // Both `status` and `isReady` are OPTIONAL on this endpoint — omitting a
+  // field does not filter on it (verified live). So:
+  //  - "all statuses" (nothing selected, or everything selected) ⇒ omit status.
+  //  - a strict subset ⇒ query each status on its own and merge. We do NOT
+  //    send a multi-value status array, because that shape is unproven here.
+  //  - isReady is omitted by default (⇒ both ready and not-ready orders).
+  //    A caller may still pin body.isReady to true/false.
+  const selected = (Array.isArray(body.status) ? body.status : [])
+    .filter((s) => VALID_STATUSES.includes(s));
+  const allStatuses = selected.length === 0 || selected.length >= VALID_STATUSES.length;
+  const statusQueries = allStatuses ? [undefined] : selected; // undefined ⇒ omit status
+  const pinReady = (body.isReady === true || body.isReady === false) ? body.isReady : undefined;
 
   const jwt = await authenticate(goApi, username, password);
 
   const wishFrom = toIso(wishTimeFrom);
   const wishTo = toIso(wishTimeTo);
-  const byUuid = new Map(); // dedupe across the two isReady passes
+  const byUuid = new Map(); // dedupe across status queries
   let pagesUsed = 0;
   let truncated = false;
 
-  for (const isReady of readyValues) {
-    const filter = { wishTimeFrom: wishFrom, wishTimeTo: wishTo, status, isReady };
+  for (const oneStatus of statusQueries) {
     for (let page = 0; page < MAX_PAGES; page++) {
+      const filter = { wishTimeFrom: wishFrom, wishTimeTo: wishTo };
+      if (oneStatus !== undefined) filter.status = [oneStatus];
+      if (pinReady !== undefined) filter.isReady = pinReady;
+
       const r = await searchOnce(goApi, jwt, storeId, filter, page, PAGE_SIZE);
       if (!r.ok) {
-        // The search was rejected. Rather than fail with the opaque message,
-        // run a bounded diagnostic so we learn exactly what GonnaOrder accepts.
+        // Rejected — run a bounded diagnostic so we learn exactly what the
+        // endpoint accepts instead of failing with the opaque message.
         const diagnostic = await diagnose(goApi, jwt, storeId, wishFrom, wishTo);
         return json(r.status || 400, {
           error: `HTTP ${r.status}: ${r.message}`,
@@ -132,7 +133,7 @@ async function handleSearch(goApi, body) {
         const key = o && (o.uuid ?? o.orderToken ?? JSON.stringify(o));
         if (!byUuid.has(key)) byUuid.set(key, o);
       }
-      if (chunk.length < PAGE_SIZE) break; // last page for this isReady value
+      if (chunk.length < PAGE_SIZE) break; // last page for this status query
       if (page === MAX_PAGES - 1) truncated = true;
     }
   }
@@ -185,8 +186,8 @@ async function diagnose(goApi, jwt, storeId, wishFrom, wishTo) {
 
   const out = { probes: [], validStatuses: [], notes: [] };
 
-  // 1) The exact proven-working n8n body.
-  out.probes.push(await run("n8n-exact {status:[CLOSED], isReady:false}",
+  // 1) Minimal known-good shape: a single status + isReady.
+  out.probes.push(await run("reference {status:[CLOSED], isReady:false}",
     { ...base, status: ["CLOSED"], isReady: false }));
   // 2) isReady omitted (is it required?)
   out.probes.push(await run("no isReady {status:[CLOSED]}",
@@ -194,18 +195,18 @@ async function diagnose(goApi, jwt, storeId, wishFrom, wishTo) {
   // 3) status omitted (is it required?)
   out.probes.push(await run("no status {isReady:false}",
     { ...base, isReady: false }));
-  // 4) each status value individually
+  // 4) each candidate status value individually, to find the accepted set
   for (const s of VALID_STATUSES) {
     const r = await run(`status:[${s}], isReady:false`, { ...base, status: [s], isReady: false });
     out.probes.push(r);
     if (r.ok) out.validStatuses.push(s);
   }
 
-  const exact = out.probes[0];
-  if (!exact.ok) {
-    out.notes.push("Even the exact n8n body failed — likely an auth/scope, store-id, or wishTime-format issue rather than the status/isReady fields.");
+  const ref = out.probes[0];
+  if (!ref.ok) {
+    out.notes.push("Even the minimal request failed — likely an auth/scope, store-id, or wishTime-format issue rather than the status/isReady fields.");
   } else {
-    out.notes.push("The exact n8n body works. Valid statuses for this endpoint: "
+    out.notes.push("The minimal request works. Statuses this endpoint accepts: "
       + (out.validStatuses.join(", ") || "(none individually accepted)") + ".");
   }
   return out;
