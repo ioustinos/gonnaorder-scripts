@@ -195,6 +195,26 @@ re-tested from a dev sandbox — the sandbox has no network route to
   client-side (≤40 uuids/call) and reusing the search JWT to avoid
   re-authenticating per chunk.
 
+## Vouchers API notes
+
+- List/fetch vouchers: `GET /api/v1/stores/{storeId}/customer-voucher?size=100`
+  (Bearer JWT). Response shape `{ data: [...] }` — vouchers under `data`.
+  Source: Ioustinos's n8n "Gonna Order Vouchers Update" flow.
+- Voucher object fields seen: `id`, `code`, `discount`, `discountType`
+  (`PERCENTILE` | `MONETARY`), `type` (`MULTI_USE` | `ONE_TIME_USE`),
+  `startDate`, `endDate`, `isActive`, `initialValue`.
+- **Pagination is UNPROVEN.** The n8n flow only ever fetched a single page
+  with `size=100` and never sent `page`. `vouchers-export.js` probes paging:
+  it fetches `?size=100&page=N`, dedupes by `id`, and if a page beyond the
+  first returns only already-seen ids (server ignored `page` and re-served
+  page 0) it stops and sets `paginationSupported: false`. When only one full
+  page came back and paging couldn't be confirmed, it returns
+  `truncated: true` and the UI warns the export may be incomplete. Re-measure
+  against a store with >100 vouchers before trusting large exports.
+- Update a voucher (not used by these scripts yet, but in the n8n flow):
+  `PUT /api/v1/stores/{storeId}/customer-voucher/{id}` with the voucher's
+  own fields plus the new `discount`.
+
 ## Page layout
 
 ```
