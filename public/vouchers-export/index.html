@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Voucher Export · GonnaOrder Scripts</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%AB%3C/text%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #1a1d24;
+      --panel-2: #232730;
+      --border: #2e333d;
+      --text: #e8eaed;
+      --muted: #9aa0a6;
+      --accent: #4f8cff;
+      --ok: #34c759;
+      --err: #ff453a;
+      --warn: #ffb020;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 32px 20px 80px; }
+    .nav { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+    .nav a { color: var(--muted); text-decoration: none; }
+    .nav a:hover { color: var(--accent); }
+    header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+    h1 { font-size: 22px; margin: 0; font-weight: 600; }
+    .tag { color: var(--muted); font-size: 13px; }
+    p.lead { color: var(--muted); margin: 4px 0 28px; }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+    input[type=text], input[type=number], input[type=password] {
+      width: 100%; background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+      padding: 10px 12px; border-radius: 8px; font: inherit; outline: none;
+    }
+    select { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); padding: 5px 8px; border-radius: 6px; font: inherit; }
+    input:focus { border-color: var(--accent); }
+    .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+    .row > div { flex: 1 1 200px; }
+    button {
+      background: var(--accent); color: white; border: 0; padding: 10px 16px;
+      border-radius: 8px; font: inherit; font-weight: 500; cursor: pointer;
+    }
+    button:hover { filter: brightness(1.1); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.secondary { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); }
+    button.mini { padding: 5px 10px; font-size: 12px; font-weight: 500; }
+    .col-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--text); }
+    .col-item:hover { background: var(--panel-2); }
+    .col-item input { accent-color: var(--accent); }
+    .toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: var(--text); }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+    th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--border); vertical-align: top; white-space: nowrap; }
+    th { color: var(--muted); font-weight: 500; background: var(--panel-2); position: sticky; top: 0; }
+    .preview-scroll { max-height: 420px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+    .progress { height: 4px; background: var(--panel-2); border-radius: 999px; overflow: hidden; margin-top: 16px; }
+    .progress .bar { height: 100%; background: var(--accent); width: 0; transition: width 0.2s; }
+    .summary { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+    .summary > div { background: var(--panel-2); padding: 10px 14px; border-radius: 8px; font-size: 13px; }
+    .summary .n { font-weight: 600; font-size: 16px; color: var(--text); }
+    .banner { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-top: 12px; }
+    .banner.warn { background: rgba(255, 176, 32, 0.12); border: 1px solid rgba(255,176,32,0.3); color: #ffd27a; }
+    .banner.err { background: rgba(255, 69, 58, 0.12); border: 1px solid rgba(255,69,58,0.3); color: #ff9a91; }
+    a { color: var(--accent); }
+    .footer { color: var(--muted); font-size: 12px; margin-top: 32px; text-align: center; }
+    code { background: var(--panel-2); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+    .help { color: var(--muted); font-size: 12px; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="nav"><a href="/">← All scripts</a></div>
+    <header>
+      <h1>🎫 Voucher Export</h1>
+      <span class="tag">GonnaOrder Scripts</span>
+    </header>
+    <p class="lead">Pull every customer voucher from a GonnaOrder store and export them to CSV.</p>
+
+    <div class="panel">
+      <div class="row" style="margin-bottom: 14px;">
+        <div>
+          <label for="username">GonnaOrder email</label>
+          <input type="text" id="username" autocomplete="username" placeholder="you@yourdomain.com" />
+        </div>
+        <div>
+          <label for="password">GonnaOrder password</label>
+          <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" />
+        </div>
+        <div style="flex: 0 0 200px;">
+          <label for="storeId">Store ID</label>
+          <input type="number" id="storeId" placeholder="e.g. 5909" min="1" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="apiBase">API base URL <span style="text-transform:none; color:var(--muted); font-weight:normal;">(advanced)</span></label>
+          <input type="text" id="apiBase" placeholder="https://admin.gonnaorder.com" />
+          <div class="help">Defaults to <code>https://admin.gonnaorder.com</code>. Override only for a non-prod instance.</div>
+        </div>
+      </div>
+      <div class="help" style="margin-top: 12px;">
+        🔒 Credentials are sent over HTTPS to our serverless function, which uses them once to get a session
+        token from GonnaOrder. They are not stored on the server. Your email is remembered in this browser; your password is not.
+      </div>
+
+      <div class="row" style="margin-top: 18px;">
+        <div style="flex: 0 0 auto;">
+          <button type="button" id="fetchBtn">Fetch vouchers</button>
+        </div>
+        <div style="flex: 0 0 auto;">
+          <button type="button" class="secondary" id="exportBtn" disabled>⬇ Export CSV (all fields)</button>
+        </div>
+        <div style="flex: 0 0 auto;">
+          <button type="button" class="secondary" id="exportPreviewBtn" disabled>⬇ Export preview (selected columns)</button>
+        </div>
+      </div>
+
+      <div class="progress" id="progressBar" style="display:none;"><div class="bar" id="progressFill"></div></div>
+      <div id="banner"></div>
+      <div class="summary" id="summary" style="display:none;">
+        <div>Vouchers: <span class="n" id="sumTotal">0</span></div>
+        <div>Pages: <span class="n" id="sumPages">0</span></div>
+      </div>
+    </div>
+
+    <div class="panel" id="previewPanel" style="display:none;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:8px; flex-wrap:wrap;">
+        <strong id="previewTitle">Preview</strong>
+        <label class="toggle" style="margin-left:auto; color:var(--muted);">Preview rows
+          <select id="previewRows">
+            <option value="100">100</option>
+            <option value="250">250</option>
+            <option value="500">500</option>
+            <option value="1000">1000</option>
+            <option value="all">All</option>
+          </select>
+        </label>
+        <span class="help" id="previewNote" style="margin:0;"></span>
+      </div>
+
+      <div id="colPicker" style="margin-bottom:12px; position:relative; display:inline-block;">
+        <button type="button" class="secondary" id="colTrigger" aria-expanded="false">
+          Columns <span id="colCount" style="color:var(--muted);"></span> <span style="font-size:10px;">▾</span>
+        </button>
+        <div id="colDropdown" style="display:none; position:absolute; z-index:30; margin-top:6px; width:380px; max-width:92vw; background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:10px; box-shadow:0 10px 30px rgba(0,0,0,0.45);">
+          <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap;">
+            <input type="text" id="colFilter" placeholder="filter columns…" style="flex:1; min-width:120px; padding:6px 10px;" />
+            <button type="button" class="secondary mini" id="colAll">All</button>
+            <button type="button" class="secondary mini" id="colNone">None</button>
+            <button type="button" class="secondary mini" id="colReset">Reset</button>
+          </div>
+          <div id="colList" style="max-height:260px; overflow:auto; display:flex; flex-direction:column; gap:2px;"></div>
+        </div>
+      </div>
+
+      <div class="preview-scroll">
+        <table id="previewTable"></table>
+      </div>
+    </div>
+
+    <div class="footer">
+      Calls <code>/.netlify/functions/vouchers-export</code> · source: <a href="https://github.com/ioustinos/gonnaorder-scripts" target="_blank" rel="noreferrer">github.com/ioustinos/gonnaorder-scripts</a>
+    </div>
+  </div>
+
+  <script>
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const storeIdInput = document.getElementById('storeId');
+    const apiBaseInput = document.getElementById('apiBase');
+    const fetchBtn = document.getElementById('fetchBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const exportPreviewBtn = document.getElementById('exportPreviewBtn');
+    const colList = document.getElementById('colList');
+    const colFilterInput = document.getElementById('colFilter');
+    const colCount = document.getElementById('colCount');
+    const colTrigger = document.getElementById('colTrigger');
+    const colDropdown = document.getElementById('colDropdown');
+    const previewRowsSel = document.getElementById('previewRows');
+    const progressBar = document.getElementById('progressBar');
+    const progressFill = document.getElementById('progressFill');
+    const bannerEl = document.getElementById('banner');
+    const summaryEl = document.getElementById('summary');
+    const sumTotal = document.getElementById('sumTotal');
+    const sumPages = document.getElementById('sumPages');
+    const previewPanel = document.getElementById('previewPanel');
+    const previewTable = document.getElementById('previewTable');
+    const previewTitle = document.getElementById('previewTitle');
+    const previewNote = document.getElementById('previewNote');
+
+    // localStorage (shared keys with the other tools)
+    const REMEMBER_KEY = 'gonnaorder.username';
+    const API_BASE_KEY = 'gonnaorder.apiBase';
+    const STORE_KEY = 'gonnaorder.storeId';
+    const DEFAULT_API_BASE = 'https://admin.gonnaorder.com';
+    try {
+      const u = localStorage.getItem(REMEMBER_KEY); if (u) usernameInput.value = u;
+      apiBaseInput.value = localStorage.getItem(API_BASE_KEY) || DEFAULT_API_BASE;
+      const s = localStorage.getItem(STORE_KEY); if (s) storeIdInput.value = s;
+    } catch {}
+    usernameInput.addEventListener('change', () => { try { localStorage.setItem(REMEMBER_KEY, usernameInput.value.trim()); } catch {} });
+    apiBaseInput.addEventListener('change', () => { try { localStorage.setItem(API_BASE_KEY, apiBaseInput.value.trim() || DEFAULT_API_BASE); } catch {} });
+    storeIdInput.addEventListener('change', () => { try { localStorage.setItem(STORE_KEY, storeIdInput.value.trim()); } catch {} });
+    function getApiBase() { return apiBaseInput.value.trim() || DEFAULT_API_BASE; }
+
+    let rows = [];          // raw voucher objects
+    let flatAll = [];       // rows flattened once, reused by the table
+    let allColumns = [];    // union of every flattened key across all rows
+    let selectedColumns = []; // columns currently shown / exported in preview
+
+    function setBanner(msg, kind) {
+      bannerEl.innerHTML = msg ? `<div class="banner ${kind || 'warn'}">${msg}</div>` : '';
+    }
+
+    fetchBtn.addEventListener('click', async () => {
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value;
+      const storeId = storeIdInput.value.trim();
+      if (!username) { alert('Enter your GonnaOrder email first.'); usernameInput.focus(); return; }
+      if (!password) { alert('Enter your GonnaOrder password first.'); passwordInput.focus(); return; }
+      if (!storeId) { alert('Enter a Store ID first.'); storeIdInput.focus(); return; }
+      try { localStorage.setItem(REMEMBER_KEY, username); localStorage.setItem(STORE_KEY, storeId); } catch {}
+
+      rows = [];
+      exportBtn.disabled = true;
+      exportPreviewBtn.disabled = true;
+      previewPanel.style.display = 'none';
+      summaryEl.style.display = 'none';
+      setBanner('');
+      fetchBtn.disabled = true;
+      fetchBtn.textContent = 'Fetching…';
+      progressBar.style.display = '';
+      progressFill.style.width = '20%';
+
+      try {
+        const res = await fetch('/api/vouchers-export', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            username, password,
+            apiBase: getApiBase(),
+            storeId: Number(storeId),
+          }),
+        });
+        const body = await res.json();
+        progressFill.style.width = '80%';
+        if (!res.ok) {
+          setBanner('<strong>Error:</strong> ' + escapeHtml(body.error || 'request failed'), 'err');
+          progressBar.style.display = 'none';
+          fetchBtn.disabled = false; fetchBtn.textContent = 'Fetch vouchers';
+          return;
+        }
+
+        rows = Array.isArray(body.vouchers) ? body.vouchers : [];
+        summaryEl.style.display = '';
+        sumTotal.textContent = body.total ?? rows.length;
+        sumPages.textContent = body.pages ?? '–';
+
+        if (body.truncated) {
+          setBanner('⚠ This store returned a full first page and paging couldn’t be confirmed on the voucher endpoint, so there may be more vouchers than shown. The export contains what was fetched — verify the count against the GonnaOrder dashboard.', 'warn');
+        }
+
+        if (!rows.length) {
+          setBanner('No vouchers found in this store.', 'warn');
+          progressBar.style.display = 'none';
+          fetchBtn.disabled = false; fetchBtn.textContent = 'Fetch vouchers';
+          return;
+        }
+
+        progressFill.style.width = '100%';
+        renderPreview();
+        exportBtn.disabled = false;
+        exportPreviewBtn.disabled = false;
+      } catch (e) {
+        setBanner('Error: ' + e.message, 'err');
+        progressBar.style.display = 'none';
+      } finally {
+        fetchBtn.disabled = false;
+        fetchBtn.textContent = 'Fetch vouchers';
+        setTimeout(() => { progressBar.style.display = 'none'; progressFill.style.width = '0%'; }, 600);
+      }
+    });
+
+    // ── flatten + CSV ──────────────────────────────────────────────────────
+    // Recursively flatten nested objects to dot-keys. Arrays are JSON-stringified
+    // into a single cell so nothing is lost and column count stays stable.
+    function flatten(obj, prefix, out) {
+      out = out || {};
+      prefix = prefix || '';
+      if (obj === null || obj === undefined) { if (prefix) out[prefix] = ''; return out; }
+      if (Array.isArray(obj)) { out[prefix] = JSON.stringify(obj); return out; }
+      if (typeof obj === 'object') {
+        const keys = Object.keys(obj);
+        if (!keys.length && prefix) { out[prefix] = ''; return out; }
+        keys.forEach(k => flatten(obj[k], prefix ? `${prefix}.${k}` : k, out));
+        return out;
+      }
+      out[prefix] = obj;
+      return out;
+    }
+
+    // Build CSV from records. If `cols` is given, only those columns are
+    // emitted (in that order); otherwise every field is included (union of keys).
+    function buildCsv(records, cols) {
+      const flat = records.map(r => flatten(r));
+      let keys = cols;
+      if (!keys) {
+        keys = [];
+        const seen = new Set();
+        flat.forEach(f => Object.keys(f).forEach(k => { if (!seen.has(k)) { seen.add(k); keys.push(k); } }));
+      }
+      const esc = v => {
+        if (v === null || v === undefined) return '';
+        const s = String(v);
+        return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      };
+      const lines = [keys.map(esc).join(',')];
+      flat.forEach(f => lines.push(keys.map(k => esc(f[k])).join(',')));
+      return lines.join('\r\n');
+    }
+
+    function downloadCsv(csv, suffix) {
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }); // BOM for Excel
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const store = storeIdInput.value.trim() || 'store';
+      const today = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `vouchers-${store}-${today}${suffix || ''}.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    // Full export — every field, every row.
+    exportBtn.addEventListener('click', () => {
+      if (!rows.length) return;
+      downloadCsv(buildCsv(rows), '');
+    });
+
+    // Preview export — only the currently selected columns, every row.
+    exportPreviewBtn.addEventListener('click', () => {
+      if (!rows.length) return;
+      const cols = orderedSelectedCols();
+      if (!cols.length) { alert('Select at least one column first.'); return; }
+      downloadCsv(buildCsv(rows, cols), '-preview');
+    });
+
+    // ── preview + column picker ──────────────────────────────────────────────
+    const PREFERRED = ['id', 'code', 'discount', 'discountType', 'type',
+      'startDate', 'endDate', 'isActive', 'initialValue'];
+
+    // Selected columns, always rendered/exported in the stable allColumns order.
+    function orderedSelectedCols() { return allColumns.filter(c => selectedColumns.includes(c)); }
+
+    function defaultColumns() {
+      let cols = PREFERRED.filter(k => allColumns.includes(k));
+      if (cols.length < 4) {
+        for (const k of allColumns) { if (!cols.includes(k)) cols.push(k); if (cols.length >= 12) break; }
+      }
+      return cols;
+    }
+
+    function renderPreview() {
+      previewPanel.style.display = '';
+      // Flatten every row once; compute the union of keys (stable first-seen order).
+      flatAll = rows.map(r => flatten(r));
+      const seen = new Set(); allColumns = [];
+      flatAll.forEach(f => Object.keys(f).forEach(k => { if (!seen.has(k)) { seen.add(k); allColumns.push(k); } }));
+      selectedColumns = defaultColumns(); // reset to sensible defaults on each fetch
+      buildColPicker();
+      renderTable();
+    }
+
+    function buildColPicker() {
+      const filter = (colFilterInput.value || '').toLowerCase();
+      const visible = allColumns.filter(c => !filter || c.toLowerCase().includes(filter));
+      colList.innerHTML = visible.map(c =>
+        `<label class="col-item"><input type="checkbox" data-col="${escapeHtml(c)}" ${selectedColumns.includes(c) ? 'checked' : ''}/> <span>${escapeHtml(c)}</span></label>`
+      ).join('') || '<span class="help" style="margin:0; padding:6px;">No columns match.</span>';
+      colCount.textContent = `(${selectedColumns.length}/${allColumns.length})`;
+    }
+
+    // Open/close the dropdown popup.
+    function setColOpen(open) {
+      colDropdown.style.display = open ? 'block' : 'none';
+      colTrigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    colTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setColOpen(colDropdown.style.display === 'none');
+    });
+    // Clicks inside the dropdown shouldn't close it; clicks anywhere else do.
+    colDropdown.addEventListener('click', (e) => e.stopPropagation());
+    document.addEventListener('click', () => setColOpen(false));
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setColOpen(false); });
+
+    function renderTable() {
+      const cols = orderedSelectedCols();
+      const limit = previewRowsSel.value === 'all' ? rows.length : Number(previewRowsSel.value);
+      const shown = flatAll.slice(0, limit);
+      previewTitle.textContent = `Preview · ${rows.length} voucher${rows.length === 1 ? '' : 's'}`;
+      previewNote.textContent =
+        (rows.length > shown.length ? `showing first ${shown.length} of ${rows.length} rows · ` : `showing all ${rows.length} · `) +
+        `“all fields” export = every column · “preview” export = ${cols.length} selected column${cols.length === 1 ? '' : 's'}`;
+      if (!cols.length) {
+        previewTable.innerHTML = '<tbody><tr><td class="help" style="padding:12px;">No columns selected.</td></tr></tbody>';
+        return;
+      }
+      let html = '<thead><tr>' + cols.map(c => `<th>${escapeHtml(c)}</th>`).join('') + '</tr></thead><tbody>';
+      shown.forEach(f => {
+        html += '<tr>' + cols.map(c => {
+          let v = f[c];
+          if (v === undefined || v === null) v = '';
+          v = String(v);
+          if (v.length > 60) v = v.slice(0, 60) + '…';
+          return `<td>${escapeHtml(v)}</td>`;
+        }).join('') + '</tr>';
+      });
+      html += '</tbody>';
+      previewTable.innerHTML = html;
+    }
+
+    // Column-picker interactions
+    colList.addEventListener('change', e => {
+      const cb = e.target;
+      if (!cb || cb.dataset.col === undefined) return;
+      const c = cb.dataset.col;
+      if (cb.checked) { if (!selectedColumns.includes(c)) selectedColumns.push(c); }
+      else { selectedColumns = selectedColumns.filter(x => x !== c); }
+      colCount.textContent = `(${selectedColumns.length}/${allColumns.length})`;
+      renderTable();
+    });
+    colFilterInput.addEventListener('input', buildColPicker);
+    previewRowsSel.addEventListener('change', renderTable);
+    document.getElementById('colAll').addEventListener('click', () => { selectedColumns = allColumns.slice(); buildColPicker(); renderTable(); });
+    document.getElementById('colNone').addEventListener('click', () => { selectedColumns = []; buildColPicker(); renderTable(); });
+    document.getElementById('colReset').addEventListener('click', () => { selectedColumns = defaultColumns(); buildColPicker(); renderTable(); });
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+  </script>
+</body>
+</html>
