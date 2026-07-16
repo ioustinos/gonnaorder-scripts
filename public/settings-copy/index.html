@@ -102,21 +102,21 @@
           <label for="password">GonnaOrder password</label>
           <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" />
         </div>
-        <div>
-          <label for="apiBase">API base URL <span style="color:var(--muted)">(advanced)</span></label>
-          <input type="text" id="apiBase" placeholder="https://admin.gonnaorder.com" />
-        </div>
       </div>
-      <div class="help">🔒 Credentials are sent over HTTPS to our serverless function, used once to get a session token, and discarded. Your email is remembered in this browser; your password is not.</div>
+      <div class="help">🔒 Credentials are sent over HTTPS to our serverless function, used once to get a session token, and discarded. Your email is remembered in this browser; your password is not. The same login is used against both API bases — a separate session token is minted per base.</div>
     </div>
 
     <!-- export -->
     <div class="panel">
       <h2>2 · Export from source store</h2>
       <div class="row">
-        <div style="flex: 0 0 220px;">
+        <div style="flex: 0 0 180px;">
           <label for="sourceId">Source store ID</label>
           <input type="number" id="sourceId" placeholder="e.g. 6804" min="1" />
+        </div>
+        <div>
+          <label for="sourceApiBase">Source API base URL <span style="color:var(--muted)">(advanced)</span></label>
+          <input type="text" id="sourceApiBase" placeholder="https://admin.gonnaorder.com" />
         </div>
         <div style="flex: 0 0 auto;">
           <button type="button" id="exportBtn">Fetch settings</button>
@@ -143,9 +143,13 @@
           <label for="importFile">Settings JSON (from step 2 — or leave empty to use what you just fetched)</label>
           <input type="file" id="importFile" accept=".json,application/json" style="color: var(--muted); font-size: 13px;" />
         </div>
-        <div style="flex: 0 0 220px;">
+        <div style="flex: 0 0 180px;">
           <label for="targetId">Target store ID</label>
           <input type="number" id="targetId" placeholder="e.g. 6979" min="1" />
+        </div>
+        <div>
+          <label for="targetApiBase">Target API base URL <span style="color:var(--muted)">(advanced)</span></label>
+          <input type="text" id="targetApiBase" placeholder="https://admin.gonnaorder.com" />
         </div>
         <div style="flex: 0 0 auto;">
           <button type="button" id="compareBtn">Load target &amp; compare</button>
@@ -230,7 +234,8 @@
   <script>
     // ── element refs ────────────────────────────────────────────────────────
     const $ = (id) => document.getElementById(id);
-    const usernameInput = $('username'), passwordInput = $('password'), apiBaseInput = $('apiBase');
+    const usernameInput = $('username'), passwordInput = $('password');
+    const sourceApiBaseInput = $('sourceApiBase'), targetApiBaseInput = $('targetApiBase');
     const sourceIdInput = $('sourceId'), targetIdInput = $('targetId');
     const exportBtn = $('exportBtn'), downloadBtn = $('downloadBtn'), compareBtn = $('compareBtn');
     const applyBtn = $('applyBtn'), reverifyBtn = $('reverifyBtn');
@@ -241,14 +246,20 @@
     const DEFAULT_API_BASE = 'https://admin.gonnaorder.com';
     try {
       const u = localStorage.getItem(REMEMBER_KEY); if (u) usernameInput.value = u;
-      apiBaseInput.value = localStorage.getItem(API_BASE_KEY) || DEFAULT_API_BASE;
+      const savedBase = localStorage.getItem(API_BASE_KEY) || DEFAULT_API_BASE;
+      sourceApiBaseInput.value = savedBase;
+      targetApiBaseInput.value = savedBase;
     } catch {}
     usernameInput.addEventListener('change', () => { try { localStorage.setItem(REMEMBER_KEY, usernameInput.value.trim()); } catch {} });
-    apiBaseInput.addEventListener('change', () => { try { localStorage.setItem(API_BASE_KEY, apiBaseInput.value.trim() || DEFAULT_API_BASE); } catch {} });
-    const getApiBase = () => apiBaseInput.value.trim() || DEFAULT_API_BASE;
+    // The shared localStorage default follows whichever base was edited last.
+    [sourceApiBaseInput, targetApiBaseInput].forEach(inp =>
+      inp.addEventListener('change', () => { try { localStorage.setItem(API_BASE_KEY, inp.value.trim() || DEFAULT_API_BASE); } catch {} }));
+    const normBase = (v) => (v || '').trim().replace(/\/+$/, '') || DEFAULT_API_BASE;
+    const getSourceBase = () => normBase(sourceApiBaseInput.value);
+    const getTargetBase = () => normBase(targetApiBaseInput.value);
 
     // ── state ───────────────────────────────────────────────────────────────
-    let token = null;        // session JWT, echoed by every function response
+    const tokens = {};       // session JWT per API base (a JWT is only valid on the base that minted it)
     let exportData = null;   // the JSON blob (from fetch or file upload)
     let targetSnap = null;   // target store snapshot
     let diffRows = { details: [], settings: [], schedules: [], specials: [] };
@@ -288,20 +299,21 @@
     }
 
     async function callFn(payload) {
+      const base = payload.apiBase || DEFAULT_API_BASE;
       const res = await fetch('/api/settings-copy', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const body = await res.json().catch(() => ({}));
-      if (body.token) token = body.token;
+      if (body.token) tokens[base] = body.token;
       if (!res.ok) throw new Error(body.error || ('HTTP ' + res.status));
       return body;
     }
-    function authFields() {
+    function authFields(base) {
       const username = usernameInput.value.trim();
       const password = passwordInput.value;
-      if (token) return { token, username, password }; // token first; creds as fallback
+      if (tokens[base]) return { token: tokens[base] };
       if (!username || !password) throw new Error('Enter your GonnaOrder email and password first.');
       return { username, password };
     }
@@ -313,8 +325,8 @@
       if (!storeId) { setBanner($('exportBanner'), 'Enter a source store ID.', 'err'); return; }
       exportBtn.disabled = true; exportBtn.textContent = 'Fetching…';
       try {
-        const auth = authFields();
-        const body = await callFn({ mode: 'export', storeId, apiBase: getApiBase(), ...auth });
+        const base = getSourceBase();
+        const body = await callFn({ mode: 'export', storeId, apiBase: base, ...authFields(base) });
         exportData = body;
         $('exportSummary').style.display = '';
         $('sumStore').textContent = body.storeName ? `${body.storeName} (#${body.storeId})` : '#' + body.storeId;
@@ -350,6 +362,7 @@
         const parsed = JSON.parse(await f.text());
         if (!parsed || !parsed.store || !parsed.store.settings) throw new Error('not a settings-copy export (missing store.settings)');
         exportData = parsed;
+        if (parsed.apiBase) sourceApiBaseInput.value = parsed.apiBase; // the export remembers which base it came from
         setBanner($('importBanner'), `✓ Loaded export of <strong>${escapeHtml(parsed.storeName || parsed.storeId)}</strong> from ${escapeHtml((parsed.exportedAt || '').slice(0, 10))}.`, 'ok');
       } catch (err) {
         setBanner($('importBanner'), '<strong>Invalid file:</strong> ' + escapeHtml(err.message), 'err');
@@ -361,11 +374,13 @@
       setBanner($('importBanner'), '');
       if (!exportData) { setBanner($('importBanner'), 'Fetch from a source store (step 2) or upload an export JSON first.', 'err'); return; }
       if (!storeId) { setBanner($('importBanner'), 'Enter a target store ID.', 'err'); return; }
-      if (storeId === Number(exportData.storeId)) { setBanner($('importBanner'), 'Target is the same store as the source — pick a different store.', 'err'); return; }
+      if (storeId === Number(exportData.storeId) && getTargetBase() === normBase(exportData.apiBase || getSourceBase())) {
+        setBanner($('importBanner'), 'Target is the same store as the source (same ID on the same API base) — pick a different store.', 'err'); return;
+      }
       compareBtn.disabled = true; compareBtn.textContent = 'Loading target…';
       try {
-        const auth = authFields();
-        targetSnap = await callFn({ mode: 'snapshot', storeId, apiBase: getApiBase(), ...auth });
+        const base = getTargetBase();
+        targetSnap = await callFn({ mode: 'snapshot', storeId, apiBase: base, ...authFields(base) });
         buildDiff();
         $('diffPanel').style.display = '';
         $('applyResults').innerHTML = '';
@@ -511,13 +526,14 @@
 
       applyBtn.disabled = true; applyBtn.textContent = 'Applying…';
       const results = [];
-      const auth = () => authFields();
+      const tBase = getTargetBase();
+      const auth = () => authFields(tBase);
 
       // 1) details — one PATCH, full flat payload (checked ⇒ source value)
       if (wantDetails) {
         try {
           const details = buildDetailsPayload();
-          await callFn({ mode: 'apply-details', storeId, apiBase: getApiBase(), details, ...auth() });
+          await callFn({ mode: 'apply-details', storeId, apiBase: tBase, details, ...auth() });
           results.push({ group: 'Store details', ok: true, detail: diffRows.details.filter(r => r.checked).map(r => r.label).join(', ') });
         } catch (e) {
           results.push({ group: 'Store details', ok: false, detail: e.message });
@@ -534,7 +550,7 @@
         for (let i = 0; i < entries.length; i += CHUNK) {
           const slice = entries.slice(i, i + CHUNK);
           try {
-            const body = await callFn({ mode: 'apply-settings', storeId, apiBase: getApiBase(), settings: slice, ...auth() });
+            const body = await callFn({ mode: 'apply-settings', storeId, apiBase: tBase, settings: slice, ...auth() });
             okCount += body.applied ?? 0;
             (body.perKey || []).forEach(k => { if (k.status === 'failed') failedKeys.push(k); });
           } catch (e) { hardError = e.message; break; }
@@ -554,7 +570,7 @@
       if (wantSchedules) {
         try {
           const body = await callFn({
-            mode: 'apply-schedules', storeId, apiBase: getApiBase(),
+            mode: 'apply-schedules', storeId, apiBase: tBase,
             schedules: diffRows.schedules.filter(r => r.checked).map(r => ({ name: r.name, availabilities: r.availabilities })),
             specials: diffRows.specials.filter(r => r.checked).map(r => ({ type: r.type, scheduleName: r.scheduleName })),
             ...auth(),
@@ -634,7 +650,8 @@
       const storeId = Number(targetIdInput.value);
       reverifyBtn.disabled = true; reverifyBtn.textContent = 'Checking…';
       try {
-        targetSnap = await callFn({ mode: 'snapshot', storeId, apiBase: getApiBase(), ...authFields() });
+        const base = getTargetBase();
+        targetSnap = await callFn({ mode: 'snapshot', storeId, apiBase: base, ...authFields(base) });
         const before = { d: diffRows.details.filter(r => r.checked).map(r => r.key), s: diffRows.settings.filter(r => r.checked).map(r => r.key) };
         buildDiff();
         const stillD = diffRows.details.filter(r => before.d.includes(r.key) && r.differs).map(r => r.label);
