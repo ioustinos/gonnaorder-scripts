@@ -1,0 +1,635 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Settings Copy · GonnaOrder Scripts</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%8B%3C/text%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #1a1d24;
+      --panel-2: #232730;
+      --border: #2e333d;
+      --text: #e8eaed;
+      --muted: #9aa0a6;
+      --accent: #4f8cff;
+      --ok: #34c759;
+      --err: #ff453a;
+      --warn: #ffb020;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 32px 20px 80px; }
+    .nav { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+    .nav a { color: var(--muted); text-decoration: none; }
+    .nav a:hover { color: var(--accent); }
+    header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+    h1 { font-size: 22px; margin: 0; font-weight: 600; }
+    h2 { font-size: 16px; margin: 0 0 12px; font-weight: 600; }
+    .tag { color: var(--muted); font-size: 13px; }
+    p.lead { color: var(--muted); margin: 4px 0 28px; }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+    input[type=text], input[type=number], input[type=password] {
+      width: 100%; background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+      padding: 10px 12px; border-radius: 8px; font: inherit; outline: none;
+    }
+    input:focus { border-color: var(--accent); }
+    .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+    .row > div { flex: 1 1 200px; }
+    button {
+      background: var(--accent); color: white; border: 0; padding: 10px 16px;
+      border-radius: 8px; font: inherit; font-weight: 500; cursor: pointer;
+    }
+    button:hover { filter: brightness(1.1); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.secondary { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); }
+    button.mini { padding: 4px 10px; font-size: 12px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+    th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 500; background: var(--panel-2); position: sticky; top: 0; }
+    td.val { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; word-break: break-all; max-width: 320px; }
+    .scroll { max-height: 460px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+    .banner { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-top: 12px; }
+    .banner.warn { background: rgba(255, 176, 32, 0.12); border: 1px solid rgba(255,176,32,0.3); color: #ffd27a; }
+    .banner.err { background: rgba(255, 69, 58, 0.12); border: 1px solid rgba(255,69,58,0.3); color: #ff9a91; }
+    .banner.ok { background: rgba(52, 199, 89, 0.12); border: 1px solid rgba(52,199,89,0.3); color: #7de29a; }
+    a { color: var(--accent); }
+    .footer { color: var(--muted); font-size: 12px; margin-top: 32px; text-align: center; }
+    code { background: var(--panel-2); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+    .help { color: var(--muted); font-size: 12px; margin-top: 6px; }
+    .summary { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+    .summary > div { background: var(--panel-2); padding: 10px 14px; border-radius: 8px; font-size: 13px; }
+    .summary .n { font-weight: 600; font-size: 16px; color: var(--text); }
+    .group-head { display: flex; align-items: center; gap: 10px; margin: 22px 0 6px; }
+    .group-head h3 { margin: 0; font-size: 14px; font-weight: 600; }
+    .group-head .count { color: var(--muted); font-size: 12px; }
+    .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+    .pill.warn { border-color: rgba(255,176,32,0.5); color: #ffd27a; }
+    .pill.ok { border-color: rgba(52,199,89,0.5); color: #7de29a; }
+    .pill.err { border-color: rgba(255,69,58,0.5); color: #ff9a91; }
+    .status-ok { color: var(--ok); }
+    .status-err { color: var(--err); }
+    .status-warn { color: var(--warn); }
+    tr.same td { opacity: 0.45; }
+    .checkcell { width: 30px; }
+    input[type=checkbox] { accent-color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="nav"><a href="/">← All scripts</a></div>
+    <header>
+      <h1>📋 Settings Copy</h1>
+      <span class="tag">GonnaOrder Scripts</span>
+    </header>
+    <p class="lead">
+      Export every copyable setting from a source store to a JSON file, then apply
+      the parts you pick to a target store — settings keys, store details, and schedules
+      (with opening/pickup/delivery-hour assignments).
+    </p>
+
+    <!-- credentials -->
+    <div class="panel">
+      <h2>1 · Credentials</h2>
+      <div class="row" style="margin-bottom: 14px;">
+        <div>
+          <label for="username">GonnaOrder email</label>
+          <input type="text" id="username" autocomplete="username" placeholder="you@yourdomain.com" />
+        </div>
+        <div>
+          <label for="password">GonnaOrder password</label>
+          <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" />
+        </div>
+        <div>
+          <label for="apiBase">API base URL <span style="color:var(--muted)">(advanced)</span></label>
+          <input type="text" id="apiBase" placeholder="https://admin.gonnaorder.com" />
+        </div>
+      </div>
+      <div class="help">🔒 Credentials are sent over HTTPS to our serverless function, used once to get a session token, and discarded. Your email is remembered in this browser; your password is not.</div>
+    </div>
+
+    <!-- export -->
+    <div class="panel">
+      <h2>2 · Export from source store</h2>
+      <div class="row">
+        <div style="flex: 0 0 220px;">
+          <label for="sourceId">Source store ID</label>
+          <input type="number" id="sourceId" placeholder="e.g. 6804" min="1" />
+        </div>
+        <div style="flex: 0 0 auto;">
+          <button type="button" id="exportBtn">Fetch settings</button>
+        </div>
+        <div style="flex: 0 0 auto;">
+          <button type="button" class="secondary" id="downloadBtn" disabled>⬇ Download JSON</button>
+        </div>
+      </div>
+      <div id="exportBanner"></div>
+      <div class="summary" id="exportSummary" style="display:none;">
+        <div>Store: <span class="n" id="sumStore">–</span></div>
+        <div>Settings keys: <span class="n" id="sumKeys">0</span></div>
+        <div>Schedules: <span class="n" id="sumSchedules">0</span></div>
+        <div>Schedule assignments: <span class="n" id="sumSpecials">0</span></div>
+        <div>Delivery zones: <span class="n" id="sumZones">0</span></div>
+      </div>
+    </div>
+
+    <!-- import -->
+    <div class="panel">
+      <h2>3 · Apply to target store</h2>
+      <div class="row" style="margin-bottom: 6px;">
+        <div>
+          <label for="importFile">Settings JSON (from step 2 — or leave empty to use what you just fetched)</label>
+          <input type="file" id="importFile" accept=".json,application/json" style="color: var(--muted); font-size: 13px;" />
+        </div>
+        <div style="flex: 0 0 220px;">
+          <label for="targetId">Target store ID</label>
+          <input type="number" id="targetId" placeholder="e.g. 6979" min="1" />
+        </div>
+        <div style="flex: 0 0 auto;">
+          <button type="button" id="compareBtn">Load target &amp; compare</button>
+        </div>
+      </div>
+      <div class="help">The target store is read first and every difference is listed below — nothing is written until you press Apply.</div>
+      <div id="importBanner"></div>
+    </div>
+
+    <!-- diff / selection -->
+    <div class="panel" id="diffPanel" style="display:none;">
+      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <h2 style="margin:0;">4 · Pick what to copy</h2>
+        <span class="help" id="diffTitle" style="margin:0;"></span>
+        <span style="margin-left:auto;"></span>
+        <button type="button" class="secondary mini" id="checkAllBtn">Select all</button>
+        <button type="button" class="secondary mini" id="checkNoneBtn">Select none</button>
+        <button type="button" class="secondary mini" id="checkDiffBtn">Only differences</button>
+      </div>
+
+      <!-- details -->
+      <div class="group-head">
+        <input type="checkbox" id="grpDetails" checked />
+        <h3>Store details</h3>
+        <span class="count" id="detailsCount"></span>
+        <span class="pill warn">name &amp; URL alias default OFF — store identity</span>
+      </div>
+      <div class="scroll" style="max-height:300px;">
+        <table id="detailsTable"></table>
+      </div>
+      <div class="help">Country and currency are locked by GonnaOrder ("contact us to change") and are never copied. All checked fields are sent in ONE update — if it fails, nothing in this group is changed.</div>
+
+      <!-- settings -->
+      <div class="group-head">
+        <input type="checkbox" id="grpSettings" checked />
+        <h3>Settings keys</h3>
+        <span class="count" id="settingsCount"></span>
+        <label class="pill" style="cursor:pointer; display:inline-flex; gap:6px; align-items:center;">
+          <input type="checkbox" id="showSame" style="margin:0;" /> show identical keys too
+        </label>
+      </div>
+      <div class="scroll">
+        <table id="settingsTable"></table>
+      </div>
+      <div class="help">Copied with merge semantics — unchecked keys on the target are untouched. Keys only the target has are never deleted.</div>
+
+      <!-- schedules -->
+      <div class="group-head">
+        <input type="checkbox" id="grpSchedules" checked />
+        <h3>Schedules</h3>
+        <span class="count" id="schedulesCount"></span>
+      </div>
+      <div class="scroll" style="max-height:260px;">
+        <table id="schedulesTable"></table>
+      </div>
+      <div class="help">Schedules are created on the target (matched by name — an existing schedule with the same name is reused, never duplicated), then the opening/ordering-hour assignments are pointed at them.</div>
+
+      <!-- zones note -->
+      <div class="group-head">
+        <h3>Delivery zones</h3>
+        <span class="count" id="zonesCount"></span>
+      </div>
+      <div class="help" id="zonesNote"></div>
+
+      <div class="row" style="margin-top: 22px;">
+        <div style="flex: 0 0 auto;">
+          <button type="button" id="applyBtn">Apply selected to target</button>
+        </div>
+        <div style="flex: 0 0 auto;">
+          <button type="button" class="secondary" id="reverifyBtn" style="display:none;">Re-check target</button>
+        </div>
+      </div>
+      <div id="applyBanner"></div>
+      <div id="applyResults"></div>
+    </div>
+
+    <div class="footer">
+      Calls <code>/.netlify/functions/settings-copy</code> · source: <a href="https://github.com/ioustinos/gonnaorder-scripts" target="_blank" rel="noreferrer">github.com/ioustinos/gonnaorder-scripts</a>
+    </div>
+  </div>
+
+  <script>
+    // ── element refs ────────────────────────────────────────────────────────
+    const $ = (id) => document.getElementById(id);
+    const usernameInput = $('username'), passwordInput = $('password'), apiBaseInput = $('apiBase');
+    const sourceIdInput = $('sourceId'), targetIdInput = $('targetId');
+    const exportBtn = $('exportBtn'), downloadBtn = $('downloadBtn'), compareBtn = $('compareBtn');
+    const applyBtn = $('applyBtn'), reverifyBtn = $('reverifyBtn');
+
+    // ── localStorage (shared keys with the other tools) ─────────────────────
+    const REMEMBER_KEY = 'gonnaorder.username';
+    const API_BASE_KEY = 'gonnaorder.apiBase';
+    const DEFAULT_API_BASE = 'https://admin.gonnaorder.com';
+    try {
+      const u = localStorage.getItem(REMEMBER_KEY); if (u) usernameInput.value = u;
+      apiBaseInput.value = localStorage.getItem(API_BASE_KEY) || DEFAULT_API_BASE;
+    } catch {}
+    usernameInput.addEventListener('change', () => { try { localStorage.setItem(REMEMBER_KEY, usernameInput.value.trim()); } catch {} });
+    apiBaseInput.addEventListener('change', () => { try { localStorage.setItem(API_BASE_KEY, apiBaseInput.value.trim() || DEFAULT_API_BASE); } catch {} });
+    const getApiBase = () => apiBaseInput.value.trim() || DEFAULT_API_BASE;
+
+    // ── state ───────────────────────────────────────────────────────────────
+    let token = null;        // session JWT, echoed by every function response
+    let exportData = null;   // the JSON blob (from fetch or file upload)
+    let targetSnap = null;   // target store snapshot
+    let diffRows = { details: [], settings: [], schedules: [], specials: [] };
+
+    // Store-identity / locked fields, and where each detail field lives.
+    // paths are into the store object; payloadKey is the PATCH body key.
+    const DETAIL_FIELDS = [
+      { key: 'name',            label: 'Store name',      path: s => s.name,                 identity: true },
+      { key: 'aliasName',       label: 'URL alias',       path: s => s.aliasName,            identity: true },
+      { key: 'description',     label: 'Description',     path: s => s.description },
+      { key: 'externalId',      label: 'External ID',     path: s => s.externalId },
+      { key: 'addressLine1',    label: 'Address line 1',  path: s => s.address && s.address.addressLine1 },
+      { key: 'addressLine2',    label: 'Address line 2',  path: s => s.address && s.address.addressLine2 },
+      { key: 'postCode',        label: 'Post code',       path: s => s.address && s.address.postCode },
+      { key: 'city',            label: 'City',            path: s => s.address && s.address.city },
+      { key: 'region',          label: 'Region',          path: s => s.address && s.address.region },
+      { key: 'coords',          label: 'Map coordinates', path: s => s.coordinates ? (s.coordinates.latitude + ', ' + s.coordinates.longitude) : null },
+      { key: 'phoneNumber',     label: 'Phone number',    path: s => s.phoneNumber },
+      { key: 'timeZone',        label: 'Time zone',       path: s => s.timeZone },
+      { key: 'language',        label: 'Language',        path: s => s.language && (s.language.name + ' (' + s.language.locale + ')') },
+    ];
+
+    function setBanner(el, msg, kind) {
+      el.innerHTML = msg ? `<div class="banner ${kind || 'warn'}">${msg}</div>` : '';
+    }
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    function fmtVal(v) {
+      if (v === undefined) return '<span style="color:var(--muted)">—</span>';
+      if (v === null) return '<span style="color:var(--muted)">null</span>';
+      if (typeof v === 'object') v = JSON.stringify(v);
+      v = String(v);
+      if (v === '') return '<span style="color:var(--muted)">""</span>';
+      if (v.length > 80) return escapeHtml(v.slice(0, 80)) + '…';
+      return escapeHtml(v);
+    }
+
+    async function callFn(payload) {
+      const res = await fetch('/api/settings-copy', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (body.token) token = body.token;
+      if (!res.ok) throw new Error(body.error || ('HTTP ' + res.status));
+      return body;
+    }
+    function authFields() {
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value;
+      if (token) return { token, username, password }; // token first; creds as fallback
+      if (!username || !password) throw new Error('Enter your GonnaOrder email and password first.');
+      return { username, password };
+    }
+
+    // ── step 2: export ──────────────────────────────────────────────────────
+    exportBtn.addEventListener('click', async () => {
+      const storeId = Number(sourceIdInput.value);
+      setBanner($('exportBanner'), '');
+      if (!storeId) { setBanner($('exportBanner'), 'Enter a source store ID.', 'err'); return; }
+      exportBtn.disabled = true; exportBtn.textContent = 'Fetching…';
+      try {
+        const auth = authFields();
+        const body = await callFn({ mode: 'export', storeId, apiBase: getApiBase(), ...auth });
+        exportData = body;
+        $('exportSummary').style.display = '';
+        $('sumStore').textContent = body.storeName ? `${body.storeName} (#${body.storeId})` : '#' + body.storeId;
+        $('sumKeys').textContent = Object.keys(body.store?.settings || {}).length;
+        $('sumSchedules').textContent = (body.schedules || []).length;
+        $('sumSpecials').textContent = Object.values(body.specialSchedules || {}).reduce((n, a) => n + (a || []).length, 0);
+        $('sumZones').textContent = (body.zones || []).length;
+        downloadBtn.disabled = false;
+        setBanner($('exportBanner'), '✓ Export ready. Download it for your records, or continue to step 3.', 'ok');
+      } catch (e) {
+        setBanner($('exportBanner'), '<strong>Error:</strong> ' + escapeHtml(e.message), 'err');
+      } finally {
+        exportBtn.disabled = false; exportBtn.textContent = 'Fetch settings';
+      }
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      if (!exportData) return;
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `store-settings-${exportData.storeId}-${(exportData.exportedAt || '').slice(0, 10)}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+
+    // ── step 3: load target + diff ──────────────────────────────────────────
+    $('importFile').addEventListener('change', async (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (!f) return;
+      try {
+        const parsed = JSON.parse(await f.text());
+        if (!parsed || !parsed.store || !parsed.store.settings) throw new Error('not a settings-copy export (missing store.settings)');
+        exportData = parsed;
+        setBanner($('importBanner'), `✓ Loaded export of <strong>${escapeHtml(parsed.storeName || parsed.storeId)}</strong> from ${escapeHtml((parsed.exportedAt || '').slice(0, 10))}.`, 'ok');
+      } catch (err) {
+        setBanner($('importBanner'), '<strong>Invalid file:</strong> ' + escapeHtml(err.message), 'err');
+      }
+    });
+
+    compareBtn.addEventListener('click', async () => {
+      const storeId = Number(targetIdInput.value);
+      setBanner($('importBanner'), '');
+      if (!exportData) { setBanner($('importBanner'), 'Fetch from a source store (step 2) or upload an export JSON first.', 'err'); return; }
+      if (!storeId) { setBanner($('importBanner'), 'Enter a target store ID.', 'err'); return; }
+      if (storeId === Number(exportData.storeId)) { setBanner($('importBanner'), 'Target is the same store as the source — pick a different store.', 'err'); return; }
+      compareBtn.disabled = true; compareBtn.textContent = 'Loading target…';
+      try {
+        const auth = authFields();
+        targetSnap = await callFn({ mode: 'snapshot', storeId, apiBase: getApiBase(), ...auth });
+        buildDiff();
+        $('diffPanel').style.display = '';
+        $('applyResults').innerHTML = '';
+        setBanner($('applyBanner'), '');
+        $('diffTitle').textContent = `${exportData.storeName || '#' + exportData.storeId} → ${targetSnap.storeName || '#' + targetSnap.storeId}`;
+        $('diffPanel').scrollIntoView({ behavior: 'smooth' });
+      } catch (e) {
+        setBanner($('importBanner'), '<strong>Error:</strong> ' + escapeHtml(e.message), 'err');
+      } finally {
+        compareBtn.disabled = false; compareBtn.textContent = 'Load target & compare';
+      }
+    });
+
+    // ── diff building + rendering ──────────────────────────────────────────
+    function buildDiff() {
+      const base = exportData.store, tgt = targetSnap.store;
+
+      diffRows.details = DETAIL_FIELDS.map(f => {
+        const b = f.path(base), t = f.path(tgt);
+        const differs = JSON.stringify(b ?? null) !== JSON.stringify(t ?? null);
+        return { ...f, base: b, target: t, differs, checked: differs && !f.identity };
+      });
+
+      const bs = base.settings || {}, ts = tgt.settings || {};
+      diffRows.settings = Object.keys(bs).sort().map(k => {
+        const differs = JSON.stringify(bs[k] ?? null) !== JSON.stringify(ts[k] ?? null);
+        return { key: k, base: bs[k], target: ts[k], differs, checked: differs };
+      });
+
+      const tgtNames = new Set((targetSnap.schedules || []).map(s => s.name));
+      diffRows.schedules = (exportData.schedules || []).map(s => ({
+        name: s.name,
+        availabilities: s.availabilities || [],
+        existsOnTarget: tgtNames.has(s.name),
+        checked: true,
+      }));
+
+      diffRows.specials = [];
+      const sp = exportData.specialSchedules || {};
+      for (const type of Object.keys(sp)) {
+        for (const item of (sp[type] || [])) {
+          if (item && item.schedule && item.schedule.name) {
+            diffRows.specials.push({ type, scheduleName: item.schedule.name, checked: true });
+          }
+        }
+      }
+
+      renderDetails(); renderSettings(); renderSchedules(); renderZones();
+    }
+
+    function renderDetails() {
+      const rows = diffRows.details;
+      const diffCount = rows.filter(r => r.differs).length;
+      $('detailsCount').textContent = `${diffCount} of ${rows.length} fields differ`;
+      $('detailsTable').innerHTML =
+        `<thead><tr><th class="checkcell"></th><th>Field</th><th>Source value</th><th>Target value</th><th></th></tr></thead><tbody>` +
+        rows.map((r, i) => `
+          <tr class="${r.differs ? '' : 'same'}">
+            <td class="checkcell"><input type="checkbox" data-grp="details" data-i="${i}" ${r.checked ? 'checked' : ''} /></td>
+            <td>${escapeHtml(r.label)}</td>
+            <td class="val">${fmtVal(r.base)}</td>
+            <td class="val">${fmtVal(r.target)}</td>
+            <td>${r.identity ? '<span class="pill warn">identity</span>' : ''}${r.key === 'language' ? '<span class="pill">languageId</span>' : ''}</td>
+          </tr>`).join('') + '</tbody>';
+    }
+
+    function renderSettings() {
+      const showSame = $('showSame').checked;
+      const rows = diffRows.settings;
+      const diffCount = rows.filter(r => r.differs).length;
+      $('settingsCount').textContent = `${diffCount} of ${rows.length} keys differ`;
+      $('settingsTable').innerHTML =
+        `<thead><tr><th class="checkcell"></th><th>Key</th><th>Source value</th><th>Target value</th></tr></thead><tbody>` +
+        rows.map((r, i) => (r.differs || showSame) ? `
+          <tr class="${r.differs ? '' : 'same'}">
+            <td class="checkcell"><input type="checkbox" data-grp="settings" data-i="${i}" ${r.checked ? 'checked' : ''} /></td>
+            <td class="val">${escapeHtml(r.key)}</td>
+            <td class="val">${fmtVal(r.base)}</td>
+            <td class="val">${fmtVal(r.target)}</td>
+          </tr>` : '').join('') + '</tbody>';
+    }
+
+    function renderSchedules() {
+      const scheds = diffRows.schedules, specials = diffRows.specials;
+      $('schedulesCount').textContent = `${scheds.length} schedule(s), ${specials.length} assignment(s)`;
+      let html = `<thead><tr><th class="checkcell"></th><th>Item</th><th>Detail</th><th></th></tr></thead><tbody>`;
+      html += scheds.map((s, i) => `
+        <tr>
+          <td class="checkcell"><input type="checkbox" data-grp="schedules" data-i="${i}" ${s.checked ? 'checked' : ''} /></td>
+          <td>📅 ${escapeHtml(s.name)}</td>
+          <td class="val">${s.availabilities.map(a => escapeHtml((a.daysOfWeek || []).join(' ') + ' ' + (a.startTime || '') + '–' + (a.endTime || ''))).join('<br/>')}</td>
+          <td>${s.existsOnTarget ? '<span class="pill ok">exists on target — will be reused</span>' : '<span class="pill">will be created</span>'}</td>
+        </tr>`).join('');
+      html += specials.map((sp, i) => `
+        <tr>
+          <td class="checkcell"><input type="checkbox" data-grp="specials" data-i="${i}" ${sp.checked ? 'checked' : ''} /></td>
+          <td>🔗 ${escapeHtml(sp.type)}</td>
+          <td class="val">→ ${escapeHtml(sp.scheduleName)}</td>
+          <td></td>
+        </tr>`).join('');
+      html += '</tbody>';
+      $('schedulesTable').innerHTML = html;
+    }
+
+    function renderZones() {
+      const z = exportData.zones || [];
+      $('zonesCount').textContent = `${z.length} zone(s) on source`;
+      $('zonesNote').innerHTML = z.length
+        ? '⚠ The source store has delivery zones. Zone copying is not supported yet (write endpoint not mapped) — set them up manually on the target.'
+        : 'Source store has no delivery zones — nothing to copy.';
+    }
+
+    // checkbox plumbing (tables are re-rendered, so delegate)
+    document.addEventListener('change', (e) => {
+      const cb = e.target;
+      if (cb && cb.dataset && cb.dataset.grp && cb.dataset.i !== undefined) {
+        diffRows[cb.dataset.grp][Number(cb.dataset.i)].checked = cb.checked;
+      }
+    });
+    $('showSame').addEventListener('change', renderSettings);
+    $('checkAllBtn').addEventListener('click', () => bulkCheck(() => true));
+    $('checkNoneBtn').addEventListener('click', () => bulkCheck(() => false));
+    $('checkDiffBtn').addEventListener('click', () => bulkCheck(r => r.differs === undefined ? true : (r.differs && !r.identity)));
+    function bulkCheck(fn) {
+      diffRows.details.forEach(r => r.checked = fn(r));
+      diffRows.settings.forEach(r => r.checked = fn(r));
+      diffRows.schedules.forEach(r => r.checked = fn(r));
+      diffRows.specials.forEach(r => r.checked = fn(r));
+      renderDetails(); renderSettings(); renderSchedules();
+    }
+
+    // ── step 4: apply ───────────────────────────────────────────────────────
+    applyBtn.addEventListener('click', async () => {
+      const storeId = Number(targetIdInput.value);
+      if (!storeId || !exportData || !targetSnap) return;
+      const wantDetails = $('grpDetails').checked && diffRows.details.some(r => r.checked);
+      const wantSettings = $('grpSettings').checked && diffRows.settings.some(r => r.checked);
+      const wantSchedules = $('grpSchedules').checked && (diffRows.schedules.some(r => r.checked) || diffRows.specials.some(r => r.checked));
+      if (!wantDetails && !wantSettings && !wantSchedules) {
+        setBanner($('applyBanner'), 'Nothing selected.', 'warn'); return;
+      }
+      if (!confirm(`Apply the selected settings to store #${storeId} (${targetSnap.storeName || 'target'})?\n\nThis writes to the LIVE store.`)) return;
+
+      applyBtn.disabled = true; applyBtn.textContent = 'Applying…';
+      const results = [];
+      const auth = () => authFields();
+
+      // 1) details — one PATCH, full flat payload (checked ⇒ source value)
+      if (wantDetails) {
+        try {
+          const details = buildDetailsPayload();
+          await callFn({ mode: 'apply-details', storeId, apiBase: getApiBase(), details, ...auth() });
+          results.push({ group: 'Store details', ok: true, detail: diffRows.details.filter(r => r.checked).map(r => r.label).join(', ') });
+        } catch (e) {
+          results.push({ group: 'Store details', ok: false, detail: e.message });
+        }
+      }
+
+      // 2) settings — chunked PUTs of the selected keys
+      if (wantSettings) {
+        const entries = diffRows.settings.filter(r => r.checked).map(r => ({ key: r.key, value: r.base }));
+        const CHUNK = 60;
+        let okCount = 0, failDetail = null;
+        for (let i = 0; i < entries.length; i += CHUNK) {
+          const slice = entries.slice(i, i + CHUNK);
+          try {
+            await callFn({ mode: 'apply-settings', storeId, apiBase: getApiBase(), settings: slice, ...auth() });
+            okCount += slice.length;
+          } catch (e) { failDetail = e.message; break; }
+        }
+        results.push({
+          group: 'Settings keys',
+          ok: !failDetail,
+          detail: failDetail ? `${okCount}/${entries.length} applied, then: ${failDetail}` : `${okCount} key(s) applied`,
+        });
+      }
+
+      // 3) schedules + assignments
+      if (wantSchedules) {
+        try {
+          const body = await callFn({
+            mode: 'apply-schedules', storeId, apiBase: getApiBase(),
+            schedules: diffRows.schedules.filter(r => r.checked).map(r => ({ name: r.name, availabilities: r.availabilities })),
+            specials: diffRows.specials.filter(r => r.checked).map(r => ({ type: r.type, scheduleName: r.scheduleName })),
+            ...auth(),
+          });
+          const schedTxt = (body.schedules || []).map(s => `${s.name}: ${s.status}${s.detail ? ' (' + s.detail + ')' : ''}`).join('; ');
+          const spTxt = (body.specials || []).map(s => `${s.type}: ${s.status}${s.detail ? ' (' + s.detail + ')' : ''}`).join('; ');
+          const anyFail = [...(body.schedules || []), ...(body.specials || [])].some(x => x.status === 'failed');
+          results.push({ group: 'Schedules', ok: !anyFail, detail: [schedTxt, spTxt].filter(Boolean).join(' · ') });
+        } catch (e) {
+          results.push({ group: 'Schedules', ok: false, detail: e.message });
+        }
+      }
+
+      renderApplyResults(results);
+      applyBtn.disabled = false; applyBtn.textContent = 'Apply selected to target';
+      reverifyBtn.style.display = '';
+    });
+
+    function buildDetailsPayload() {
+      const base = exportData.store, tgt = targetSnap.store;
+      const pick = (key) => diffRows.details.find(r => r.key === key && r.checked);
+      const from = (key, getter) => (pick(key) ? getter(base) : getter(tgt));
+      return {
+        name:            from('name',         s => s.name),
+        description:     from('description',  s => s.description ?? ''),
+        aliasName:       from('aliasName',    s => s.aliasName),
+        externalId:      from('externalId',   s => s.externalId ?? 'NA'),
+        longitude:       from('coords',       s => s.coordinates && s.coordinates.longitude),
+        latitude:        from('coords',       s => s.coordinates && s.coordinates.latitude),
+        countryId:       tgt.address && tgt.address.country && tgt.address.country.id, // locked — always target's own
+        languageId:      from('language',     s => s.language && s.language.id),
+        addressLine1:    from('addressLine1', s => s.address && s.address.addressLine1),
+        addressLine2:    from('addressLine2', s => (s.address && s.address.addressLine2) ?? null),
+        postCode:        from('postCode',     s => s.address && s.address.postCode),
+        region:          from('region',       s => (s.address && s.address.region) ?? null),
+        city:            from('city',         s => s.address && s.address.city),
+        phoneCountryCode: (tgt.address && tgt.address.country && tgt.address.country.phoneCode) || '30',
+        phoneNumber:     from('phoneNumber',  s => s.phoneNumber),
+        timeZone:        from('timeZone',     s => s.timeZone),
+        DISPLAY_ADDRESS: null,
+        currencyId: '',            // locked — country default
+        currencyCountryId: '',
+      };
+    }
+
+    function renderApplyResults(results) {
+      const allOk = results.every(r => r.ok);
+      setBanner($('applyBanner'),
+        allOk ? '✓ All selected groups applied. Press “Re-check target” to verify against the live store.'
+              : '⚠ Some groups failed — see below. Nothing outside the failed group was rolled back.',
+        allOk ? 'ok' : 'err');
+      $('applyResults').innerHTML =
+        '<table><thead><tr><th>Group</th><th>Result</th><th>Detail</th></tr></thead><tbody>' +
+        results.map(r => `
+          <tr>
+            <td>${escapeHtml(r.group)}</td>
+            <td class="${r.ok ? 'status-ok' : 'status-err'}">${r.ok ? '✓ applied' : '✗ failed'}</td>
+            <td class="val">${escapeHtml(r.detail || '')}</td>
+          </tr>`).join('') + '</tbody></table>';
+    }
+
+    // ── verify: re-snapshot the target and re-diff ──────────────────────────
+    reverifyBtn.addEventListener('click', async () => {
+      const storeId = Number(targetIdInput.value);
+      reverifyBtn.disabled = true; reverifyBtn.textContent = 'Checking…';
+      try {
+        targetSnap = await callFn({ mode: 'snapshot', storeId, apiBase: getApiBase(), ...authFields() });
+        const before = { d: diffRows.details.filter(r => r.checked).map(r => r.key), s: diffRows.settings.filter(r => r.checked).map(r => r.key) };
+        buildDiff();
+        const stillD = diffRows.details.filter(r => before.d.includes(r.key) && r.differs).map(r => r.label);
+        const stillS = diffRows.settings.filter(r => before.s.includes(r.key) && r.differs).map(r => r.key);
+        const clean = !stillD.length && !stillS.length;
+        setBanner($('applyBanner'),
+          clean ? '✓ Verified — every field and key you copied now matches the source on the live target store.'
+                : '⚠ Still differing after apply: ' + escapeHtml([...stillD, ...stillS].join(', ')),
+          clean ? 'ok' : 'warn');
+      } catch (e) {
+        setBanner($('applyBanner'), '<strong>Verify failed:</strong> ' + escapeHtml(e.message), 'err');
+      } finally {
+        reverifyBtn.disabled = false; reverifyBtn.textContent = 'Re-check target';
+      }
+    });
+  </script>
+</body>
+</html>

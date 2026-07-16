@@ -215,6 +215,66 @@ re-tested from a dev sandbox — the sandbox has no network route to
   `PUT /api/v1/stores/{storeId}/customer-voucher/{id}` with the voucher's
   own fields plus the new `discount`.
 
+## Store settings API notes (settings-copy)
+
+Discovered 2026-07-16 by walking every Settings tab of test store 6979 in the
+admin UI with a main-world fetch/XHR interceptor (extension isolated-world
+patches do NOT see the app's requests — inject a `<script>` tag instead).
+
+- **Read everything in one call:** `GET /api/v1/stores/{storeId}` (Bearer JWT)
+  returns the full store object: flat fields (name, aliasName, address,
+  phoneNumber, timeZone, vatPercentage, orderMinAmountDelivery,
+  orderFeeDelivery, orderAmountFreeDelivery, …) plus `settings` — a flat map
+  of ~139–166 KEY → value pairs that backs almost every Settings tab.
+  `GET /stores/{id}/settings` does NOT exist (405) — settings only come
+  embedded in the store object.
+- **Write settings (the big one):** `PUT /api/v1/stores/{storeId}/settings`
+  with body `[{"key":"ADD_BASKET_ONE_CLICK","value":true}, …]` — an ARRAY of
+  key/value pairs, NOT a bare map (bare map ⇒ the usual opaque
+  `400 "Failed to read request"`). **Merge semantics confirmed**: keys not in
+  the array are untouched, so partial updates are safe. Returns the full
+  updated store object. Nearly every tab (Order Capture, Order Management,
+  Pickup, Table Ordering, Reservations toggles, Catalog, Domains toggles,
+  Branding, Notifications, Payments options) writes ONLY this endpoint.
+  Viva credentials live here too (`VIVA_MERCHANT_ID`, `VIVA_API_KEY`,
+  `VIVA_PAYMENT_TYPE`, …) so a settings copy carries payment config.
+- **Write store details:** `PATCH /api/v1/stores/{storeId}` with the FULL flat
+  payload the UI sends: `{name, description, aliasName, externalId, longitude,
+  latitude, countryId, languageId, addressLine1, addressLine2, postCode,
+  region, city, phoneCountryCode, phoneNumber, timeZone, DISPLAY_ADDRESS,
+  currencyId, currencyCountryId}`. **A partial body ({description} alone) is
+  silently ignored — 200 but no change.** Always send the full set.
+  `aliasName` is the public URL slug (unique platform-wide) — copying it to
+  another store will conflict; keep the target's own.
+- **Schedules:**
+  - List: `GET /stores/{id}/schedules` → `[{id, name, availabilities:
+    [{id, startTime "HH:MM:SS", endTime, daysOfWeek:["MON",…], type
+    "DAYS_OF_WEEK", calculatedEndTime}]}]`
+  - Create: `POST /stores/{id}/schedules` body `{id:-1, name,
+    availabilities:[{id:<client temp, e.g. Date.now()>, startTime "HH:MM",
+    endTime, daysOfWeek:[…]}]}`. Server assigns real ids.
+  - Assignments ("General opening times" etc.):
+    `GET /stores/{id}/schedules/special?type=X` and
+    `POST /stores/{id}/schedules/special` body `{type, scheduleId}` where
+    type ∈ OPENING_HOURS | SERVING_HOURS | PICKUP_HOURS |
+    ADDRESS_DELIVERY_HOURS. scheduleId is the SERVER id ⇒ when copying
+    between stores, create schedules first, then remap old→new ids before
+    posting specials.
+- **Delivery zones:** `GET /api/v2/stores/{id}/zones` (note **v2**) and
+  `GET /api/v1/stores/{id}/zones/status`. Zone write endpoints not yet
+  captured (baseline store 6804 has zero zones, so settings-copy v1 only
+  reports them).
+- **Integrations webhooks:** `GET /stores/{id}/orders/events/configs`.
+- **NOT copyable via API:** payment-provider connections (payabl/mollie/
+  stripe/viva/NBG "Connect" OAuth flows) and Integrations connections
+  (mynext, Flex Delivery, WooDelivery…). Country and currency are also
+  locked in the UI ("contact us to change").
+- **Token refresh:** the app calls `POST /auth/token/refresh` with the
+  refresh token as the raw body. Not needed for short function calls.
+- The admin SPA caches the whole selected-store object in localStorage
+  (`__stores_storage__`) and re-renders tabs from it — that's why most tab
+  clicks fire no GETs.
+
 ## Page layout
 
 ```
