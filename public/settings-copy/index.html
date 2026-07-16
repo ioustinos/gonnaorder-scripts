@@ -524,22 +524,29 @@
         }
       }
 
-      // 2) settings — chunked PUTs of the selected keys
+      // 2) settings — chunked PUTs. The function tries each chunk as ONE
+      // transactional batch; if GonnaOrder rejects it (one bad key kills the
+      // whole array), it automatically retries key-by-key and reports each.
       if (wantSettings) {
         const entries = diffRows.settings.filter(r => r.checked).map(r => ({ key: r.key, value: r.base }));
-        const CHUNK = 60;
-        let okCount = 0, failDetail = null;
+        const CHUNK = 35; // headroom for the per-key fallback inside the 10s function budget
+        let okCount = 0, failedKeys = [], hardError = null;
         for (let i = 0; i < entries.length; i += CHUNK) {
           const slice = entries.slice(i, i + CHUNK);
           try {
-            await callFn({ mode: 'apply-settings', storeId, apiBase: getApiBase(), settings: slice, ...auth() });
-            okCount += slice.length;
-          } catch (e) { failDetail = e.message; break; }
+            const body = await callFn({ mode: 'apply-settings', storeId, apiBase: getApiBase(), settings: slice, ...auth() });
+            okCount += body.applied ?? 0;
+            (body.perKey || []).forEach(k => { if (k.status === 'failed') failedKeys.push(k); });
+          } catch (e) { hardError = e.message; break; }
         }
+        const parts = [`${okCount}/${entries.length} key(s) applied`];
+        if (hardError) parts.push(`stopped: ${hardError}`);
         results.push({
           group: 'Settings keys',
-          ok: !failDetail,
-          detail: failDetail ? `${okCount}/${entries.length} applied, then: ${failDetail}` : `${okCount} key(s) applied`,
+          ok: !hardError && !failedKeys.length,
+          partial: !hardError && failedKeys.length > 0 && okCount > 0,
+          detail: parts.join(' · '),
+          failedKeys,
         });
       }
 
@@ -595,18 +602,31 @@
 
     function renderApplyResults(results) {
       const allOk = results.every(r => r.ok);
+      const anyPartial = results.some(r => r.partial);
       setBanner($('applyBanner'),
         allOk ? '✓ All selected groups applied. Press “Re-check target” to verify against the live store.'
-              : '⚠ Some groups failed — see below. Nothing outside the failed group was rolled back.',
-        allOk ? 'ok' : 'err');
-      $('applyResults').innerHTML =
+        : anyPartial ? '⚠ Applied with exceptions — every key was attempted individually; the ones that failed are listed below with the API’s reason. Usually they depend on something not yet set up on the target (e.g. an integration connection).'
+        : '⚠ Some groups failed — see below. Nothing outside the failed group was rolled back.',
+        allOk ? 'ok' : anyPartial ? 'warn' : 'err');
+      let html =
         '<table><thead><tr><th>Group</th><th>Result</th><th>Detail</th></tr></thead><tbody>' +
         results.map(r => `
           <tr>
             <td>${escapeHtml(r.group)}</td>
-            <td class="${r.ok ? 'status-ok' : 'status-err'}">${r.ok ? '✓ applied' : '✗ failed'}</td>
+            <td class="${r.ok ? 'status-ok' : (r.partial ? 'status-warn' : 'status-err')}">${r.ok ? '✓ applied' : (r.partial ? '△ partial' : '✗ failed')}</td>
             <td class="val">${escapeHtml(r.detail || '')}</td>
           </tr>`).join('') + '</tbody></table>';
+      const failedKeys = results.flatMap(r => r.failedKeys || []);
+      if (failedKeys.length) {
+        html += '<div class="group-head"><h3>Keys that could not be applied</h3><span class="count">' + failedKeys.length + '</span></div>' +
+          '<table><thead><tr><th>Key</th><th>API reason</th></tr></thead><tbody>' +
+          failedKeys.map(k => `
+            <tr>
+              <td class="val">${escapeHtml(k.key)}</td>
+              <td class="val status-warn">${escapeHtml(k.error || '')}</td>
+            </tr>`).join('') + '</tbody></table>';
+      }
+      $('applyResults').innerHTML = html;
     }
 
     // ── verify: re-snapshot the target and re-diff ──────────────────────────

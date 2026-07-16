@@ -118,19 +118,46 @@ export const handler = async (event) => {
             return json(400, { error: "each settings entry needs a string key" });
           }
         }
-        const res = await fetch(`${goApi}/stores/${storeId}/settings`, {
-          method: "PUT",
-          headers: HJ,
-          body: JSON.stringify(entries.map((e) => ({ key: e.key, value: e.value }))),
-        });
-        if (!res.ok) {
-          return json(res.status, { token: jwt, error: await errDetail(res) });
+        // Fast path: one PUT with every key. GonnaOrder validates the array
+        // TRANSACTIONALLY — a single invalid key (e.g. THIRD_PARTY_NOTIFICATION
+        // without order-event configs) rejects the WHOLE batch. So on failure
+        // we retry key-by-key and report per-key outcomes instead of giving up.
+        const putKeys = (arr) =>
+          fetch(`${goApi}/stores/${storeId}/settings`, {
+            method: "PUT",
+            headers: HJ,
+            body: JSON.stringify(arr.map((e) => ({ key: e.key, value: e.value }))),
+          });
+
+        const batchRes = await putKeys(entries);
+        if (batchRes.ok) {
+          const store = await batchRes.json().catch(() => null);
+          return json(200, {
+            token: jwt,
+            applied: entries.length,
+            failed: 0,
+            perKey: entries.map((e) => ({ key: e.key, status: "applied" })),
+            settings: store?.settings || null,
+          });
         }
-        const store = await res.json().catch(() => null);
+
+        const batchError = await errDetail(batchRes);
+        const perKey = [];
+        for (const e of entries) {
+          const res = await putKeys([e]);
+          perKey.push({
+            key: e.key,
+            status: res.ok ? "applied" : "failed",
+            ...(res.ok ? {} : { error: await errDetail(res) }),
+          });
+        }
+        const failed = perKey.filter((k) => k.status === "failed").length;
         return json(200, {
           token: jwt,
-          applied: entries.length,
-          settings: store?.settings || null,
+          applied: perKey.length - failed,
+          failed,
+          batchError, // why the fast path was rejected
+          perKey,
         });
       }
 

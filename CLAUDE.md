@@ -232,7 +232,14 @@ patches do NOT see the app's requests — inject a `<script>` tag instead).
   with body `[{"key":"ADD_BASKET_ONE_CLICK","value":true}, …]` — an ARRAY of
   key/value pairs, NOT a bare map (bare map ⇒ the usual opaque
   `400 "Failed to read request"`). **Merge semantics confirmed**: keys not in
-  the array are untouched, so partial updates are safe. Returns the full
+  the array are untouched, so partial updates are safe.
+  **The array is validated TRANSACTIONALLY**: one invalid key rejects the
+  whole batch (seen live 2026-07-16: `THIRD_PARTY_NOTIFICATION: true` on a
+  store with no order-event configs ⇒ "No order event configs found. The
+  third party notification cannot be enabled." and 0/50 keys applied).
+  Some keys have server-side dependencies on state that can't be copied
+  (integration connections, webhooks). `settings-copy.js` therefore falls
+  back to key-by-key PUTs when a batch fails and reports per-key outcomes. Returns the full
   updated store object. Nearly every tab (Order Capture, Order Management,
   Pickup, Table Ordering, Reservations toggles, Catalog, Domains toggles,
   Branding, Notifications, Payments options) writes ONLY this endpoint.
