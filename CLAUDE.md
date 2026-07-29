@@ -139,13 +139,25 @@ server-side secrets (Sentry DSN, etc.), they go here.
   back in every `apply-one` body). If GonnaOrder rejects calls mid-session,
   reload the catalogue to get a fresh token.
 - **Override endpoint only works for inherited (clone) catalogues**, not
-  parent stores. The function detects this via `inheritedCount` (number of
-  offers with `originalOffer.offerId` set) and returns
-  `isInheritedCatalogue: boolean` in the `catalogue` response. The frontend
-  shows a warning banner and disables Apply / vis-toggle / bulk buttons
-  when `isInheritedCatalogue === false`. For parent stores, a different
-  GonnaOrder endpoint would be needed (direct offer update) — not yet
-  wired here. If we ever add it, branch on `isInheritedCatalogue` in
+  parent stores. Clone detection (fixed 2026-07-29): the catalog response
+  for a CLONE store carries a top-level **`parentStoreId`**; the parent
+  store's own catalog response has no such key. Verified live on 7016
+  (clone of 6423, `parentStoreId: 6423`) vs 6423 (no key). The function
+  returns `isInheritedCatalogue = parentStoreId != null || inheritedCount > 0`
+  plus `parentStoreId` in the `catalogue` response.
+  **Do NOT rely on offer-level `originalOffer.offerId` alone** — a clone
+  with zero customisations returns offers WITHOUT it (7016: 0/320), which
+  made the original `inheritedCount > 0` heuristic misreport fresh clones
+  as parents (false warning + disabled Apply). `originalOffer` only appears
+  on offers that already have a customisation. Note also: a fresh clone's
+  catalog returns the PARENT's `catalogId` and parent offer ids — apply-one
+  already handles that (`parentStoreOfferId = offer.parentStoreOfferId ||
+  offer.offerId`, no `childOfferId` on first override). `isClonedOffer` was
+  `false` on all offers in both stores — useless as a signal.
+  The frontend shows a warning banner and disables Apply / vis-toggle /
+  bulk buttons when `isInheritedCatalogue === false`. For parent stores, a
+  different GonnaOrder endpoint would be needed (direct offer update) — not
+  yet wired here. If we ever add it, branch on `isInheritedCatalogue` in
   `apply-one` and route to the right endpoint.
 
 ## Orders API notes

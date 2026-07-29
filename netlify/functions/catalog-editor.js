@@ -114,11 +114,19 @@ export const handler = async (event) => {
       // catalogue. The /offer/override endpoint used by apply-one ONLY works
       // for inherited catalogues — for parent stores, there'd need to be a
       // different (direct-update) endpoint that we don't currently call.
-      // Heuristic: a clone catalogue has every offer linked to a parent-store
-      // offer via originalOffer.offerId. If NO offer has one, it's a parent.
-      const isInheritedCatalogue = inheritedCount > 0;
+      //
+      // Authoritative signal (verified live 2026-07-29 on stores 7016/6423):
+      // the catalog response for a CLONE store carries a top-level
+      // `parentStoreId` (the parent store's id); the PARENT store's own
+      // catalog response has no such key. Offer-level `originalOffer.offerId`
+      // is NOT reliable — a clone with zero customisations returns offers
+      // without it (7016: 0/320 offers had one), which made the old
+      // `inheritedCount > 0` heuristic misreport fresh clones as parents.
+      // inheritedCount is kept as a secondary signal / debug output only.
+      const parentStoreId = catalogData.parentStoreId ?? null;
+      const isInheritedCatalogue = parentStoreId != null || inheritedCount > 0;
 
-      return json(200, { token, catalogId, offers, isInheritedCatalogue, inheritedCount });
+      return json(200, { token, catalogId, offers, isInheritedCatalogue, inheritedCount, parentStoreId });
     }
 
     // ── MODE: apply-one ─────────────────────────────────────────────────────
