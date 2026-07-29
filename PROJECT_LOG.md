@@ -69,3 +69,21 @@ First live test (store 5770) imported 2/3 sample rows. The third — `WELCOME5`,
 Fix: corrected both enums in `netlify/functions/create-vouchers.js`, in the row normalizer + validation in `public/index.html`, and in `public/sample-vouchers.csv`. The frontend still accepts the older aliases (`FIXED`, `SINGLE_USE`, `%`, etc.) and normalizes them so CSVs that used my wrong values still work.
 
 Lesson logged in CLAUDE.md: a generic `400 "Failed to read request"` from voucher create almost always means an unknown enum string — the deserializer doesn't give field-level errors.
+
+## 2026-07-29 — Voucher importer: batch size 100 → 50 + one auto-retry per batch
+
+August 2079-row import "failed". Verified the CSV end-to-end (structure,
+enums, dates, leading zeros, exact SheetJS parse simulation) — the file was
+clean; the importer code was untouched since June. Root cause is the known
+chunk-timeout behaviour: at the slow end of GonnaOrder's 50–120ms per-create
+latency, 100 rows ≈ 12s, which breaches Netlify's 10s function budget. The
+original "3–5x headroom" comment used the fast end of the range.
+
+Changes (`public/vouchers/index.html`, comments in `create-vouchers.js`):
+
+1. `BATCH_SIZE` 100 → 50 (~2.5–6s worst case per batch). Server-side cap
+   stays 100 as a ceiling.
+2. One automatic retry per failed batch. A timed-out batch was usually
+   created server-side anyway, so the retry reclassifies those rows as
+   "duplicate" (purple) instead of falsely "failed" (red). Recovery from a
+   half-imported run is now: just re-import the same file.

@@ -327,11 +327,15 @@ script means swapping one `<div class="card soon">` placeholder for an
 ## Conventions
 
 - One function = one bulk operation. Sequential calls inside. Cap batches —
-  voucher importer is 100 rows per function call, chunked client-side for
-  larger imports so each function invocation stays well inside Netlify's
-  10s budget. (300 was tried first and burned 5/6 chunks on a real 1683-row
-  import — GonnaOrder voucher-create latency is 50–120ms per call, not the
-  ~30ms guess. Don't re-raise without re-measuring.)
+  voucher importer sends 50 rows per function call (server-side hard cap
+  100), chunked client-side for larger imports so each function invocation
+  stays well inside Netlify's 10s budget. (300 was tried first and burned
+  5/6 chunks on a real 1683-row import; 100 still breached the timeout at
+  the slow end of GonnaOrder's 50–120ms per-create latency — 100 × 120ms ≈
+  12s — and burned batches on a 2079-row import 2026-07-29. Don't re-raise
+  without re-measuring.) Each batch gets ONE automatic client-side retry:
+  a timed-out batch was usually created server-side anyway, so the retry
+  reclassifies those rows as "duplicate" instead of falsely "failed".
 - Validate inputs client-side AND server-side. Client side is for UX
   (show errors before submit); server side is the authoritative gate.
 - Show per-row outcomes — never just "done" or "failed".
@@ -345,5 +349,6 @@ script means swapping one `<div class="card soon">` placeholder for an
 - No user accounts, no auth on the page itself. The Netlify site is public
   but only useful to people who know GonnaOrder store IDs.
 - No persistence. Each batch import is fire-and-forget — refresh and it's gone.
-- No queue / retry. If a row fails, the user fixes the CSV and re-imports
-  only the failed rows.
+- No queue / server-side retry. The voucher importer does ONE automatic
+  client-side retry per batch (to un-lie timeout "failures"); beyond that,
+  the user fixes the CSV and re-imports — duplicates are surfaced safely.

@@ -60,8 +60,11 @@ export const handler = async (event) => {
   //    avoids overwhelming the GonnaOrder API. Real-world GonnaOrder voucher-
   //    create latency runs 50–120ms (often >100ms) and Netlify caps functions
   //    at 10s, so 300 was too aggressive — observed 5/6 chunks timing out on
-  //    an 1683-row import 2026-06-04. Capping at 100 gives ~3–5x headroom.
-  //    Larger imports are chunked client-side by `public/vouchers/index.html`.
+  //    an 1683-row import 2026-06-04. At the slow end even 100 rows ≈ 12s,
+  //    which still breaches the timeout (seen on the 2026-07-29 2079-row
+  //    import), so the client now sends 50 rows per call; the 100 cap here
+  //    stays as the hard server-side ceiling. Larger imports are chunked
+  //    client-side by `public/vouchers/index.html`.
   const results = [];
   for (const row of rows) {
     try {

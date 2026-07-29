@@ -359,12 +359,15 @@
       }
     });
 
-    // Chunk size for the import — must match the server-side cap in
-    // netlify/functions/create-vouchers.js. Observed GonnaOrder voucher-
-    // create latency runs 50–120ms; 100 rows/chunk gives ~3–5x headroom
-    // against Netlify's 10s function timeout. 300 was tried first and
-    // burned 5/6 chunks on a real import — don't re-raise.
-    const BATCH_SIZE = 100;
+    // Chunk size for the import — must stay at or under the server-side cap
+    // (100) in netlify/functions/create-vouchers.js. Observed GonnaOrder
+    // voucher-create latency runs 50–120ms; at the slow end, 100 rows ≈ 12s
+    // which BLOWS Netlify's 10s function timeout (the original "3–5x
+    // headroom" math was wrong — it used the fast end). 300 burned 5/6
+    // chunks on a real import (2026-06-04); 100 likely burned chunks on the
+    // 2026-07-29 2079-row import. 50 rows ≈ 2.5–6s worst case. Don't
+    // re-raise without re-measuring.
+    const BATCH_SIZE = 50;
 
     importBtn.addEventListener('click', async () => {
       const username = usernameInput.value.trim();
@@ -417,21 +420,38 @@
         const chunkLabel = chunks.length > 1 ? ` (batch ${c + 1}/${chunks.length})` : '';
         importBtn.textContent = `Importing… ${processed}/${valid.length}${chunkLabel}`;
 
-        try {
-          const res = await fetch('/api/create-vouchers', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-              username,
-              password,
-              apiBase: getApiBase(),
-              storeId: Number(storeId),
-              rows: chunk.map(toPayload),
-            }),
-          });
-          const body = await res.json();
-          if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+        // Up to 2 attempts per batch. A whole-batch failure is usually
+        // Netlify's 10s timeout cutting the response off AFTER GonnaOrder
+        // already created some/all vouchers in the batch — the retry then
+        // gets CUSTOMER_VOUCHER_ALREADY_PRESENT for those rows, which lands
+        // them in the "duplicate" bucket instead of falsely reading as
+        // failed. Safe because voucher create is idempotent per code.
+        let body = null, lastErr = null;
+        for (let attempt = 1; attempt <= 2 && !body; attempt++) {
+          if (attempt > 1) {
+            importBtn.textContent = `Importing… ${processed}/${valid.length}${chunkLabel} — retrying batch`;
+          }
+          try {
+            const res = await fetch('/api/create-vouchers', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                username,
+                password,
+                apiBase: getApiBase(),
+                storeId: Number(storeId),
+                rows: chunk.map(toPayload),
+              }),
+            });
+            const parsed = await res.json();
+            if (!res.ok) throw new Error(parsed.error || `HTTP ${res.status}`);
+            body = parsed;
+          } catch (e) {
+            lastErr = e;
+          }
+        }
 
+        if (body) {
           body.results.forEach((result, vi) => {
             const idx = parsedRows.findIndex(r => r === chunk[vi]);
             if (result.ok) {
@@ -453,16 +473,15 @@
             sumDup.textContent = dup;
             sumErr.textContent = err;
           });
-        } catch (e) {
-          // Whole-chunk failure (network, function timeout, etc.) — mark
-          // every row in this chunk as failed so the user knows exactly
-          // which ones to retry. NB: with a function timeout, some rows
-          // may have actually been created server-side before the timeout
-          // hit — re-importing them will return a "voucher already exists"
-          // per-row error from GonnaOrder, which is harmless.
+        } else {
+          // Both attempts failed (network, repeated function timeout, etc.)
+          // — mark every row in this chunk as failed so the user knows
+          // exactly which ones to retry. NB: with a function timeout, some
+          // rows may still have been created server-side — re-importing the
+          // same file surfaces those as "duplicate", which is harmless.
           chunk.forEach(r => {
             const idx = parsedRows.findIndex(x => x === r);
-            updateRowStatus(idx, 'failed', e.message);
+            updateRowStatus(idx, 'failed', lastErr ? lastErr.message : 'unknown error');
             err++;
             processed++;
           });
