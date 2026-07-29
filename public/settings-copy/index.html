@@ -194,7 +194,7 @@
       <div class="scroll">
         <table id="settingsTable"></table>
       </div>
-      <div class="help">Copied with merge semantics — unchecked keys on the target are untouched. Keys only the target has are never deleted.</div>
+      <div class="help">Copied with merge semantics — unchecked keys on the target are untouched, and keys only the target has are never deleted. A dash under “Target value” means the key doesn't exist on the target yet; applying it creates it. <span class="pill warn">store-specific</span> keys (domains, image URLs, parent-store links) default to OFF — use ✎ to apply a value that's right for the target instead of the source's own.</div>
 
       <!-- schedules -->
       <div class="group-head">
@@ -263,6 +263,14 @@
     let exportData = null;   // the JSON blob (from fetch or file upload)
     let targetSnap = null;   // target store snapshot
     let diffRows = { details: [], settings: [], schedules: [], specials: [] };
+
+    // Settings keys whose VALUES belong to one specific store — domains, image
+    // URLs, parent-store relationships, and keys with server-side dependencies.
+    // They default to unchecked; use ✎ to apply an edited (target-appropriate) value.
+    const STORE_SPECIFIC_KEY = /^(EXTERNAL_DOMAIN|EXTERNAL_DOMAIN_ENABLED|IMAGE|LOGO|THIRD_PARTY_NOTIFICATION)$|^INHERIT_/;
+    // Payment credentials — flagged so you notice them, but checked by default
+    // (copying payment config between own stores is a main use of this tool).
+    const CREDENTIAL_KEY = /^(VIVA_|STRIPE_|MOLLIE_|PAYABL_|NBG_|EPAY_|SQUARE_|APCOPAY_)/;
 
     // Store-identity / locked fields, and where each detail field lives.
     // paths are into the store object; payloadKey is the PATCH body key.
@@ -405,9 +413,20 @@
       });
 
       const bs = base.settings || {}, ts = tgt.settings || {};
+      // keep any hand-edited values across re-diffs (e.g. after Re-check target)
+      const prevOverrides = Object.fromEntries(
+        (diffRows.settings || []).filter(r => r.override !== undefined).map(r => [r.key, r.override]));
       diffRows.settings = Object.keys(bs).sort().map(k => {
         const differs = JSON.stringify(bs[k] ?? null) !== JSON.stringify(ts[k] ?? null);
-        return { key: k, base: bs[k], target: ts[k], differs, checked: differs };
+        const specific = STORE_SPECIFIC_KEY.test(k);
+        const cred = CREDENTIAL_KEY.test(k);
+        const override = prevOverrides[k];
+        return {
+          key: k, base: bs[k], target: ts[k], differs, specific, cred, override,
+          // store-specific values (domains, images, parent-store links) default
+          // OFF — copy them only deliberately, or ✎-edit them to a new value.
+          checked: override !== undefined ? true : (differs && !specific),
+        };
       });
 
       const tgtNames = new Set((targetSnap.schedules || []).map(s => s.name));
@@ -453,15 +472,48 @@
       const diffCount = rows.filter(r => r.differs).length;
       $('settingsCount').textContent = `${diffCount} of ${rows.length} keys differ`;
       $('settingsTable').innerHTML =
-        `<thead><tr><th class="checkcell"></th><th>Key</th><th>Source value</th><th>Target value</th></tr></thead><tbody>` +
-        rows.map((r, i) => (r.differs || showSame) ? `
-          <tr class="${r.differs ? '' : 'same'}">
+        `<thead><tr><th class="checkcell"></th><th>Key</th><th>Value to apply</th><th>Target value</th><th></th></tr></thead><tbody>` +
+        rows.map((r, i) => (r.differs || showSame || r.override !== undefined) ? `
+          <tr class="${r.differs || r.override !== undefined ? '' : 'same'}">
             <td class="checkcell"><input type="checkbox" data-grp="settings" data-i="${i}" ${r.checked ? 'checked' : ''} /></td>
             <td class="val">${escapeHtml(r.key)}</td>
-            <td class="val">${fmtVal(r.base)}</td>
+            <td class="val" id="srcCell-${i}">${fmtVal(r.override !== undefined ? r.override : r.base)}${r.override !== undefined ? ' <span class="pill ok">edited</span>' : ''}</td>
             <td class="val">${fmtVal(r.target)}</td>
+            <td style="white-space:nowrap;">${r.specific ? '<span class="pill warn">store-specific</span> ' : ''}${r.cred ? '<span class="pill">credential</span> ' : ''}<button type="button" class="secondary mini" data-edit="${i}" title="Edit the value that will be applied to the target">✎</button></td>
           </tr>` : '').join('') + '</tbody>';
     }
+
+    // ✎ inline editing — the edited value replaces the source value for this
+    // apply (and auto-checks the row). Enter commits, Escape cancels.
+    $('settingsTable').addEventListener('click', (e) => {
+      const btn = e.target.closest ? e.target.closest('button[data-edit]') : null;
+      if (!btn) return;
+      const i = Number(btn.dataset.edit);
+      const r = diffRows.settings[i];
+      const cur = r.override !== undefined ? r.override : r.base;
+      const curStr = (cur === null || cur === undefined) ? '' : (typeof cur === 'object' ? JSON.stringify(cur) : String(cur));
+      const cell = document.getElementById('srcCell-' + i);
+      cell.innerHTML = `<input type="text" id="editInp-${i}" style="width:100%; padding:6px 8px; font-size:12px;" />`;
+      const inp = document.getElementById('editInp-' + i);
+      inp.value = curStr;
+      inp.focus(); inp.select();
+      let done = false;
+      const commit = () => {
+        if (done) return; done = true;
+        const raw = inp.value;
+        let v;
+        if (raw === '') v = '';
+        else { try { v = JSON.parse(raw); } catch { v = raw; } } // true/false/numbers/JSON parsed, else plain string
+        r.override = v;
+        r.checked = true;
+        renderSettings();
+      };
+      inp.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter') commit();
+        if (ev.key === 'Escape') { done = true; renderSettings(); }
+      });
+      inp.addEventListener('blur', commit);
+    });
 
     function renderSchedules() {
       const scheds = diffRows.schedules, specials = diffRows.specials;
@@ -503,7 +555,7 @@
     $('showSame').addEventListener('change', renderSettings);
     $('checkAllBtn').addEventListener('click', () => bulkCheck(() => true));
     $('checkNoneBtn').addEventListener('click', () => bulkCheck(() => false));
-    $('checkDiffBtn').addEventListener('click', () => bulkCheck(r => r.differs === undefined ? true : (r.differs && !r.identity)));
+    $('checkDiffBtn').addEventListener('click', () => bulkCheck(r => r.differs === undefined ? true : (r.differs && !r.identity && !r.specific)));
     function bulkCheck(fn) {
       diffRows.details.forEach(r => r.checked = fn(r));
       diffRows.settings.forEach(r => r.checked = fn(r));
@@ -544,7 +596,7 @@
       // transactional batch; if GonnaOrder rejects it (one bad key kills the
       // whole array), it automatically retries key-by-key and reports each.
       if (wantSettings) {
-        const entries = diffRows.settings.filter(r => r.checked).map(r => ({ key: r.key, value: r.base }));
+        const entries = diffRows.settings.filter(r => r.checked).map(r => ({ key: r.key, value: r.override !== undefined ? r.override : r.base }));
         const CHUNK = 35; // headroom for the per-key fallback inside the 10s function budget
         let okCount = 0, failedKeys = [], hardError = null;
         for (let i = 0; i < entries.length; i += CHUNK) {
@@ -651,14 +703,18 @@
       reverifyBtn.disabled = true; reverifyBtn.textContent = 'Checking…';
       try {
         const base = getTargetBase();
+        // What we actually sent per key: the ✎-edited value if present, else the source value.
+        const appliedS = Object.fromEntries(
+          diffRows.settings.filter(r => r.checked).map(r => [r.key, r.override !== undefined ? r.override : r.base]));
+        const beforeD = diffRows.details.filter(r => r.checked).map(r => r.key);
         targetSnap = await callFn({ mode: 'snapshot', storeId, apiBase: base, ...authFields(base) });
-        const before = { d: diffRows.details.filter(r => r.checked).map(r => r.key), s: diffRows.settings.filter(r => r.checked).map(r => r.key) };
+        const tsNow = (targetSnap.store && targetSnap.store.settings) || {};
+        const stillS = Object.keys(appliedS).filter(k => JSON.stringify(appliedS[k] ?? null) !== JSON.stringify(tsNow[k] ?? null));
         buildDiff();
-        const stillD = diffRows.details.filter(r => before.d.includes(r.key) && r.differs).map(r => r.label);
-        const stillS = diffRows.settings.filter(r => before.s.includes(r.key) && r.differs).map(r => r.key);
+        const stillD = diffRows.details.filter(r => beforeD.includes(r.key) && r.differs).map(r => r.label);
         const clean = !stillD.length && !stillS.length;
         setBanner($('applyBanner'),
-          clean ? '✓ Verified — every field and key you copied now matches the source on the live target store.'
+          clean ? '✓ Verified — every field and key you applied (including edited values) now matches on the live target store.'
                 : '⚠ Still differing after apply: ' + escapeHtml([...stillD, ...stillS].join(', ')),
           clean ? 'ok' : 'warn');
       } catch (e) {
