@@ -160,6 +160,53 @@ server-side secrets (Sentry DSN, etc.), they go here.
   yet wired here. If we ever add it, branch on `isInheritedCatalogue` in
   `apply-one` and route to the right endpoint.
 
+## Dish ↔ schedule assignment API notes (schedule-assign)
+
+Captured live 2026-08-03 by watching the admin UI on parent store 6423
+(Ioustinos drove, Chrome DevTools MCP recorded).
+
+- **Date-based schedules**: the `GET /stores/{id}/schedules` list (same
+  endpoint as settings-copy) can also contain availabilities of type
+  **`DATE_INCLUSIVE`** with a `date: "YYYY-MM-DD"` field (+ startTime/
+  endTime/calculatedEndTime), one availability per date. Day-of-week
+  schedules use `DAYS_OF_WEEK` and have no `date`. A schedule can in
+  principle mix both — schedule-assign only treats all-`DATE_INCLUSIVE`
+  schedules as date-matchable.
+- **Read one offer (v2!):**
+  `GET /api/v2/user/stores/{storeId}/catalog/{catalogId}/offer/{offerId}`
+  → full offer incl. `scheduleId`, `isSellable`, `attributeDtos`,
+  `externalProductId`.
+- **Save one offer (v2!, the assignment call):**
+  `POST /api/v2/stores/{storeId}/catalog/{catalogId}/offer/{offerId}` with
+  the FULL offer payload (the admin UI always sends everything; partial
+  bodies are the known GonnaOrder trap). Returns **201** with the updated
+  offer. Setting `scheduleId` here is how a dish is assigned to a schedule.
+  GET→POST renames: `isSellable` → **`sellable`**. Fields the GET doesn't
+  return but the UI sends: `loyaltyPointCollectType: null`,
+  `loyaltyPointCollectValue: null`, `giftCardTemplateId: ""`,
+  `productId: null`, `countAgainstSlots` (string, mirrors the
+  `COUNT_AGAINST_SLOT` attribute). ⚠ If an offer ever HAS a linked product/
+  loyalty/gift-card config, echoing these defaults could reset it — the
+  captured save was on a normal dish where the UI itself sent exactly these.
+- **This is the DIRECT (parent-store) offer update** — the counterpart to
+  the clone-only `/offer/override` endpoint in catalog-editor.js. Verified
+  on parent store 6423 only; the schedule-assign UI warns when the loaded
+  store has a `parentStoreId` (clone).
+- Schedule assignment happens at PARENT offer level; variants were not
+  touched in the captured flow.
+- The v1 catalog (`GET /api/v1/user/stores/{id}/catalog`) already exposes
+  `externalProductId`, `scheduleId` and `isSellable` per offer — no
+  per-offer GETs needed for matching. NOTE: external IDs are NOT unique in
+  6423 — 16 ext IDs exist on two offers each (old/new duplicate dishes,
+  e.g. "Lemon Chicken Bowl" / "Lemon Chicken Bowl."). schedule-assign
+  surfaces duplicates with per-offer checkboxes (default: update all).
+- **SheetJS date trap** (client-side): reading the weekly-menu `.xls`
+  (really an HTML table) with `raw:false` re-formats ISO dates
+  "2026-08-10" into US-style strings "8/10/26" — an EU day-first parser
+  then flips day/month. schedule-assign reads with `cellDates: true` +
+  `raw: true` and formats Date objects with UTC getters (at UTC-midnight)
+  instead.
+
 ## Orders API notes
 
 Source of truth: Ioustinos's live n8n workflow "GonnaOrder Pollfish Order
@@ -305,6 +352,8 @@ public/
     index.html           ← Catalogue Editor (price / discount / visibility per item, bulk ops)
   orders/
     index.html           ← Orders Export (date-window order pull → raw-flatten CSV)
+  schedule-assign/
+    index.html           ← Schedule Assigner (weekly menu upload → exact-date-match → assign dishes to schedules)
   sample-vouchers.csv    ← shared starter, kept at root so it's /sample-vouchers.csv
 ```
 

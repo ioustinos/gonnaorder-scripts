@@ -87,3 +87,33 @@ Changes (`public/vouchers/index.html`, comments in `create-vouchers.js`):
    created server-side anyway, so the retry reclassifies those rows as
    "duplicate" (purple) instead of falsely "failed" (red). Recovery from a
    half-imported run is now: just re-import the same file.
+
+## 2026-08-03 — Schedule Assigner shipped (sixth script)
+
+Flexible schedule creator: upload the weekly menu export (`Week_of_YYYYMMDD.xls`
+— actually an HTML table; dish external ID + one row per active date) and
+assign each GonnaOrder dish to the store schedule whose `DATE_INCLUSIVE`
+date-set matches the dish's active dates **exactly**. No exact match → red
+error row, nothing written. Matching rule chosen by Ioustinos: exact only,
+no superset fallback.
+
+- API discovered by live DevTools capture on store 6423 (Ioustinos drove the
+  admin UI): dish→schedule assignment is `POST /api/v2/stores/{id}/catalog/
+  {catalogId}/offer/{offerId}` (v2, 201) with the FULL offer payload,
+  `scheduleId` set; offer read is the v2 user GET. Full notes in CLAUDE.md.
+- `netlify/functions/schedule-assign.js`: `load` (auth + schedules +
+  catalogue in one call) and `apply-one` (GET offer → echo full payload with
+  new scheduleId). Client applies sequentially with per-offer badges.
+- Frontend `public/schedule-assign/index.html`: schedules overview (date
+  schedules vs ignored day-of-week ones), menu upload, matching preview with
+  per-dish status (ready / no-schedule / not-in-catalogue / already set /
+  duplicate ext IDs with checkboxes / ambiguous schedules with dropdown),
+  skip-already-assigned toggle, clone-store warning banner.
+- Two traps caught before ship: (1) SheetJS `raw:false` reformatted the
+  file's ISO dates to US "8/10/26" strings — would have flipped day/month
+  under an EU parser; fixed with `cellDates:true` + UTC getters. (2) 16
+  external IDs in 6423 map to TWO offers each (old/new duplicate dishes) —
+  surfaced in the UI rather than guessed.
+- Verified offline end-to-end against the real `Week_of_20260810.xls` + the
+  captured schedule list: 22 dishes → week schedule, 12 → each weekday, 0
+  errors. Live verification on the deployed site is the remaining step.

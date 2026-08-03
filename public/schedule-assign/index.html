@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Schedule Assigner · GonnaOrder Scripts</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%85%3C/text%3E%3C/svg%3E" />
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #1a1d24;
+      --panel-2: #232730;
+      --border: #2e333d;
+      --text: #e8eaed;
+      --muted: #9aa0a6;
+      --accent: #4f8cff;
+      --ok: #34c759;
+      --err: #ff453a;
+      --warn: #ffb020;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 20px 80px; }
+    .nav { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+    .nav a { color: var(--muted); text-decoration: none; }
+    .nav a:hover { color: var(--accent); }
+    header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+    h1 { font-size: 22px; margin: 0; font-weight: 600; }
+    .tag { color: var(--muted); font-size: 13px; }
+    p.lead { color: var(--muted); margin: 4px 0 28px; }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+    input[type=text], input[type=number], input[type=password], select {
+      width: 100%; background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+      padding: 10px 12px; border-radius: 8px; font: inherit; outline: none;
+    }
+    select { padding: 6px 8px; font-size: 12px; width: auto; max-width: 260px; }
+    input:focus, select:focus { border-color: var(--accent); }
+    .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+    .row > div { flex: 1 1 200px; }
+    button {
+      background: var(--accent); color: white; border: 0; padding: 10px 16px;
+      border-radius: 8px; font: inherit; font-weight: 500; cursor: pointer;
+    }
+    button:hover { filter: brightness(1.1); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.secondary { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); }
+    .drop {
+      border: 2px dashed var(--border); border-radius: 10px; padding: 28px; text-align: center;
+      color: var(--muted); cursor: pointer; transition: all 0.15s;
+    }
+    .drop.hover { border-color: var(--accent); background: rgba(79, 140, 255, 0.06); color: var(--text); }
+    .drop input { display: none; }
+    .drop .file { color: var(--text); }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 500; background: var(--panel-2); position: sticky; top: 0; z-index: 1; }
+    .preview-scroll { max-height: 480px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+    .badge.ok { background: rgba(52, 199, 89, 0.15); color: var(--ok); }
+    .badge.err { background: rgba(255, 69, 58, 0.15); color: var(--err); }
+    .badge.warn { background: rgba(255, 176, 32, 0.15); color: var(--warn); }
+    .badge.dup  { background: rgba(176, 132, 255, 0.15); color: #c4b5fd; }
+    .badge.idle { background: var(--panel-2); color: var(--muted); }
+    .progress { height: 4px; background: var(--panel-2); border-radius: 999px; overflow: hidden; margin-top: 16px; }
+    .progress .bar { height: 100%; background: var(--accent); width: 0; transition: width 0.2s; }
+    .summary { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+    .summary > div { background: var(--panel-2); padding: 10px 14px; border-radius: 8px; font-size: 13px; }
+    .summary .n { font-weight: 600; font-size: 16px; color: var(--text); }
+    .err-msg { color: var(--err); font-size: 12px; }
+    a { color: var(--accent); }
+    .footer { color: var(--muted); font-size: 12px; margin-top: 32px; text-align: center; }
+    code { background: var(--panel-2); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+    .help { color: var(--muted); font-size: 12px; margin-top: 6px; }
+    .banner { border-radius: 8px; padding: 12px 14px; font-size: 13px; margin-top: 12px; }
+    .banner.warn { background: rgba(255, 176, 32, 0.1); border: 1px solid rgba(255, 176, 32, 0.35); color: var(--warn); }
+    .banner.err { background: rgba(255, 69, 58, 0.1); border: 1px solid rgba(255, 69, 58, 0.35); color: var(--err); }
+    .dates { color: var(--muted); font-size: 11px; }
+    .dim { color: var(--muted); }
+    .subrow { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+    .mono { font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="nav"><a href="/">← All scripts</a></div>
+    <header>
+      <h1>📅 Schedule Assigner</h1>
+      <span class="tag">GonnaOrder Scripts</span>
+    </header>
+    <p class="lead">
+      Upload a weekly menu (dish external ID + active dates) and assign each GonnaOrder dish
+      to the store schedule whose dates match <strong>exactly</strong>. No exact match → error, nothing written.
+    </p>
+
+    <!-- ── Step 1: credentials + load ─────────────────────────────────────── -->
+    <div class="panel">
+      <div class="row" style="margin-bottom: 14px;">
+        <div>
+          <label for="username">GonnaOrder email</label>
+          <input type="text" id="username" autocomplete="username" placeholder="you@yourdomain.com" />
+        </div>
+        <div>
+          <label for="password">GonnaOrder password</label>
+          <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" />
+        </div>
+        <div style="flex: 0 0 160px;">
+          <label for="storeId">Store ID</label>
+          <input type="number" id="storeId" placeholder="e.g. 6423" min="1" />
+        </div>
+        <div style="flex: 0 0 auto;">
+          <button type="button" id="loadBtn">Load schedules &amp; catalogue</button>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="apiBase">API base URL <span style="text-transform:none; color:var(--muted); font-weight:normal;">(advanced)</span></label>
+          <input type="text" id="apiBase" placeholder="https://admin.gonnaorder.com" />
+        </div>
+      </div>
+      <div class="help" style="margin-top: 12px;">
+        🔒 Credentials are sent over HTTPS to our serverless function, used once for a session token,
+        never stored. Your email is remembered in this browser; your password is not.
+      </div>
+      <div id="loadStatus" class="help" style="margin-top:10px; display:none;"></div>
+      <div id="cloneWarn" class="banner warn" style="display:none;"></div>
+    </div>
+
+    <!-- ── Step 2: schedules overview ─────────────────────────────────────── -->
+    <div class="panel" id="schedulesPanel" style="display:none;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <strong>Date-based schedules in this store</strong>
+        <span class="help" id="schedulesMeta"></span>
+      </div>
+      <div class="preview-scroll" style="max-height: 260px;">
+        <table id="schedulesTable"></table>
+      </div>
+      <div class="help">Only schedules made purely of specific dates (<code>DATE_INCLUSIVE</code>) are matchable. Day-of-week schedules are listed greyed out and never matched.</div>
+    </div>
+
+    <!-- ── Step 3: file upload ────────────────────────────────────────────── -->
+    <div class="panel" id="filePanel" style="display:none;">
+      <label>Menu file (Excel or CSV) — columns: <code>External ID</code>, <code>Date</code> (one row per dish per active date)</label>
+      <label class="drop" id="drop">
+        <input type="file" id="file" accept=".csv,.xlsx,.xls" />
+        <div id="dropText">Drop the weekly menu file here, or click to choose.</div>
+      </label>
+      <div class="help">Extra columns like <code>Day</code>, <code>Category</code>, <code>Dish (EL)</code> are used for display only. A dish appearing on several dates = several rows.</div>
+    </div>
+
+    <!-- ── Step 4: matching preview + apply ───────────────────────────────── -->
+    <div class="panel" id="previewPanel" style="display:none;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:12px; flex-wrap:wrap;">
+        <strong id="previewTitle">Matching preview</strong>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <label style="margin:0; display:flex; align-items:center; gap:6px; font-size:12px;">
+            <input type="checkbox" id="skipAlready" checked style="width:auto;" /> skip dishes already on the right schedule
+          </label>
+          <button type="button" id="applyBtn">Assign schedules</button>
+        </div>
+      </div>
+      <div class="summary" id="matchSummary"></div>
+      <div class="preview-scroll">
+        <table id="previewTable"></table>
+      </div>
+      <div class="progress" id="progressBar" style="display:none;"><div class="bar" id="progressFill"></div></div>
+      <div class="summary" id="resultSummary" style="display:none;">
+        <div>To process: <span class="n" id="sumTotal">0</span></div>
+        <div>Assigned: <span class="n" id="sumOk" style="color:var(--ok);">0</span></div>
+        <div>Skipped: <span class="n" id="sumSkip" style="color:#c4b5fd;">0</span></div>
+        <div>Failed: <span class="n" id="sumErr" style="color:var(--err);">0</span></div>
+      </div>
+    </div>
+
+    <div class="footer">
+      Calls <code>/.netlify/functions/schedule-assign</code> · source: <a href="https://github.com/ioustinos/gonnaorder-scripts" target="_blank" rel="noreferrer">github.com/ioustinos/gonnaorder-scripts</a>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const FN = '/.netlify/functions/schedule-assign';
+
+    // Remember email + apiBase like the other tools.
+    const REMEMBER_KEY = 'gonnaorder.username';
+    const API_BASE_KEY = 'gonnaorder.apiBase';
+    const DEFAULT_API_BASE = 'https://admin.gonnaorder.com';
+    try {
+      const saved = localStorage.getItem(REMEMBER_KEY);
+      if (saved) $('username').value = saved;
+      $('apiBase').value = localStorage.getItem(API_BASE_KEY) || DEFAULT_API_BASE;
+    } catch {}
+    $('username').addEventListener('change', () => { try { localStorage.setItem(REMEMBER_KEY, $('username').value.trim()); } catch {} });
+    $('apiBase').addEventListener('change', () => { try { localStorage.setItem(API_BASE_KEY, $('apiBase').value.trim() || DEFAULT_API_BASE); } catch {} });
+    const getApiBase = () => ($('apiBase').value.trim() || DEFAULT_API_BASE);
+
+    // ── State ────────────────────────────────────────────────────────────────
+    let session = null;      // { token, catalogId, parentStoreId, schedules, offers }
+    let dateSchedules = [];  // schedules with isDateSchedule, with dateKey
+    let excelRows = [];      // raw parsed rows
+    let matchRows = [];      // grouped per external ID with matching results
+
+    const dateKey = (dates) => dates.join('|');
+
+    // ── Step 1: load ─────────────────────────────────────────────────────────
+    $('loadBtn').addEventListener('click', async () => {
+      const email = $('username').value.trim();
+      const password = $('password').value;
+      const storeId = $('storeId').value.trim();
+      if (!email || !password || !storeId) { alert('Email, password and store ID are required.'); return; }
+
+      $('loadBtn').disabled = true;
+      show('loadStatus', 'Logging in and loading schedules + catalogue…');
+      $('cloneWarn').style.display = 'none';
+
+      try {
+        const r = await fetch(FN, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ mode: 'load', email, password, storeId, apiBase: getApiBase() }),
+        });
+        const data = await r.json();
+        if (!r.ok || data.error) throw new Error(data.error || ('HTTP ' + r.status));
+
+        session = data;
+        dateSchedules = data.schedules.filter(s => s.isDateSchedule && s.dates.length);
+        const dow = data.schedules.length - dateSchedules.length;
+
+        show('loadStatus',
+          `✅ Loaded: ${dateSchedules.length} date-based schedules (${dow} other schedules ignored for matching), ` +
+          `${data.offers.length} catalogue items across the store.`);
+
+        if (data.parentStoreId != null) {
+          $('cloneWarn').textContent =
+            `⚠ This store looks like a CLONE (parent store ${data.parentStoreId}). ` +
+            `The direct offer-save endpoint this tool uses was only verified on parent stores — ` +
+            `results on clones are unverified. Proceed with care.`;
+          $('cloneWarn').style.display = 'block';
+        }
+
+        renderSchedules();
+        $('schedulesPanel').style.display = 'block';
+        $('filePanel').style.display = 'block';
+        if (excelRows.length) buildMatches(); // re-match if a file was already parsed
+      } catch (err) {
+        show('loadStatus', '');
+        $('loadStatus').style.display = 'none';
+        alert('Load failed: ' + err.message);
+      } finally {
+        $('loadBtn').disabled = false;
+      }
+    });
+
+    function renderSchedules() {
+      const rows = [];
+      rows.push('<tr><th>Schedule</th><th>ID</th><th># dates</th><th>Dates</th></tr>');
+      for (const s of dateSchedules) {
+        rows.push(`<tr><td>${esc(s.name)}</td><td class="mono">${s.id}</td><td class="mono">${s.dates.length}</td><td class="dates">${s.dates.join(', ')}</td></tr>`);
+      }
+      for (const s of session.schedules.filter(x => !x.isDateSchedule || !x.dates.length)) {
+        rows.push(`<tr class="dim"><td>${esc(s.name)}</td><td class="mono">${s.id}</td><td colspan="2" class="dates">not date-based — ignored</td></tr>`);
+      }
+      $('schedulesTable').innerHTML = rows.join('');
+      $('schedulesMeta').textContent = `${dateSchedules.length} matchable / ${session.schedules.length} total`;
+    }
+
+    // ── Step 3: file parsing ─────────────────────────────────────────────────
+    const drop = $('drop'), fileInput = $('file'), dropText = $('dropText');
+    ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+    ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+    drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+    fileInput.addEventListener('change', e => { const f = e.target.files[0]; if (f) handleFile(f); });
+
+    function handleFile(file) {
+      dropText.innerHTML = `<span class="file">📄 ${esc(file.name)}</span> · ${(file.size / 1024).toFixed(1)} KB`;
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          // SheetJS sniffs the real format — including "fake .xls" files that
+          // are actually an HTML table (our weekly menu export is one).
+          //
+          // IMPORTANT: cellDates + raw:true. With raw:false SheetJS re-FORMATS
+          // recognised dates using a US M/D/YY pattern ("2026-08-10" in the
+          // file becomes the string "8/10/26"), which an EU dd/mm parser then
+          // reads as 8 October. Date objects avoid the ambiguity entirely.
+          const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(sheet, { raw: true, defval: '' });
+          if (!rows.length) throw new Error('No data rows found in the first sheet.');
+          excelRows = rows.map(normalizeRow).filter(Boolean);
+          if (!excelRows.length) throw new Error('No rows with both an External ID and a Date were found. Expected columns: "External ID", "Date".');
+          buildMatches();
+        } catch (err) {
+          alert('Could not parse file: ' + err.message);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // Normalize one sheet row → { extId, date:"YYYY-MM-DD", label } or null.
+    function normalizeRow(r) {
+      const getRaw = (...names) => {
+        for (const k of Object.keys(r)) {
+          const norm = k.toLowerCase().replace(/[\s_()-]/g, '');
+          for (const n of names) if (norm === n) return r[k];
+        }
+        return '';
+      };
+      const get = (...names) => String(getRaw(...names)).trim();
+      const extId = get('externalid', 'externalproductid', 'extid');
+      const dateRaw = getRaw('date'); // may be a Date object (cellDates) — don't stringify
+      if (!extId || dateRaw === '' || dateRaw == null) return null;
+      const date = normalizeDate(dateRaw);
+      if (!date) return null;
+      const label = get('dishel', 'dishen', 'dish', 'name') || '';
+      const category = get('category') || '';
+      return { extId, date, label, category };
+    }
+
+    // Accept Date objects (from cellDates), "2026-08-10", "10/08/2026" (EU),
+    // Excel serial numbers. Ambiguous 2-digit slashed strings are treated as
+    // EU day-first — but with cellDates:true those normally never reach us.
+    function normalizeDate(v) {
+      if (v instanceof Date && !isNaN(v)) {
+        // SheetJS parses "2026-08-10" to UTC midnight; local getters would
+        // shift a day for users west of UTC. Use UTC getters when the value
+        // is exactly UTC-midnight, local getters otherwise.
+        const utcMidnight = v.getUTCHours() === 0 && v.getUTCMinutes() === 0 && v.getUTCSeconds() === 0;
+        return utcMidnight
+          ? `${v.getUTCFullYear()}-${pad(v.getUTCMonth() + 1)}-${pad(v.getUTCDate())}`
+          : `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}`;
+      }
+      v = String(v).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+      if (/^\d+(\.\d+)?$/.test(v) && Number(v) > 40000) { // Excel serial (post-2009)
+        const d = XLSX.SSF.parse_date_code(Number(v));
+        if (d) return `${d.y}-${pad(d.m)}-${pad(d.d)}`;
+        return null;
+      }
+      let m = v.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})$/); // dd/mm/yyyy or dd.mm.yyyy (EU day-first)
+      if (m) {
+        let [, d, mo, y] = m;
+        if (y.length === 2) y = '20' + y;
+        if (Number(mo) > 12) return null; // clearly not a month — reject rather than guess
+        return `${y}-${pad(mo)}-${pad(d)}`;
+      }
+      return null;
+    }
+    const pad = (n) => String(n).padStart(2, '0');
+
+    // ── Matching ────────────────────────────────────────────────────────────
+    function buildMatches() {
+      if (!session) { alert('Load the store first (step 1), then upload the file.'); return; }
+
+      // Group rows: extId → { dates:Set, label, category }
+      const byId = new Map();
+      for (const row of excelRows) {
+        if (!byId.has(row.extId)) byId.set(row.extId, { extId: row.extId, dates: new Set(), label: row.label, category: row.category });
+        const g = byId.get(row.extId);
+        g.dates.add(row.date);
+        if (!g.label && row.label) g.label = row.label;
+      }
+
+      // Index schedules by exact date-set key
+      const schedByKey = new Map();
+      for (const s of dateSchedules) {
+        const k = dateKey(s.dates);
+        if (!schedByKey.has(k)) schedByKey.set(k, []);
+        schedByKey.get(k).push(s);
+      }
+
+      // Index catalogue offers by externalProductId
+      const offersByExt = new Map();
+      for (const o of session.offers) {
+        if (!o.externalProductId) continue;
+        if (!offersByExt.has(o.externalProductId)) offersByExt.set(o.externalProductId, []);
+        offersByExt.get(o.externalProductId).push(o);
+      }
+
+      matchRows = [...byId.values()].map(g => {
+        const dates = [...g.dates].sort();
+        const candidates = schedByKey.get(dateKey(dates)) || [];
+        const offers = offersByExt.get(g.extId) || [];
+        return {
+          extId: g.extId,
+          label: g.label,
+          category: g.category,
+          dates,
+          scheduleCandidates: candidates,
+          chosenScheduleId: candidates.length ? candidates[0].id : null,
+          offers,
+          // per-offer include flags (duplicates default to ALL included)
+          include: Object.fromEntries(offers.map(o => [o.offerId, true])),
+          results: {},   // offerId → { status, message }
+        };
+      }).sort((a, b) => (a.category || '').localeCompare(b.category || '') || String(a.extId).localeCompare(String(b.extId), undefined, { numeric: true }));
+
+      renderPreview();
+      $('previewPanel').style.display = 'block';
+    }
+
+    function rowIssues(r) {
+      const issues = [];
+      if (!r.scheduleCandidates.length) issues.push('no-schedule');
+      if (!r.offers.length) issues.push('no-offer');
+      if (r.offers.length > 1) issues.push('duplicate-offers');
+      if (r.scheduleCandidates.length > 1) issues.push('ambiguous-schedule');
+      return issues;
+    }
+
+    function renderPreview() {
+      const skipAlready = $('skipAlready').checked;
+      const head = '<tr><th></th><th>Ext ID</th><th>Dish</th><th>Active dates</th><th>Matched schedule</th><th>Catalogue item(s)</th><th>Status</th></tr>';
+      const body = matchRows.map((r, i) => {
+        const issues = rowIssues(r);
+        const schedCell = !r.scheduleCandidates.length
+          ? '<span class="badge err">no exact match</span>'
+          : r.scheduleCandidates.length === 1
+            ? esc(r.scheduleCandidates[0].name) + ` <span class="dates mono">#${r.scheduleCandidates[0].id}</span>`
+            : `<select data-row="${i}" class="schedPick">` +
+                r.scheduleCandidates.map(s => `<option value="${s.id}" ${s.id === r.chosenScheduleId ? 'selected' : ''}>${esc(s.name)} (#${s.id})</option>`).join('') +
+              `</select> <span class="badge warn">ambiguous</span>`;
+
+        const offerCell = !r.offers.length
+          ? '<span class="badge err">not in catalogue</span>'
+          : r.offers.map(o => {
+              const already = r.chosenScheduleId != null && o.scheduleId === r.chosenScheduleId;
+              const res = r.results[o.offerId];
+              const resBadge = res ? ` <span class="badge ${res.status === 'ok' ? 'ok' : res.status === 'skip' ? 'dup' : 'err'}">${esc(res.message)}</span>` : '';
+              const alreadyBadge = !res && already ? ' <span class="badge dup">already set</span>' : '';
+              const cb = r.offers.length > 1
+                ? `<input type="checkbox" data-row="${i}" data-offer="${o.offerId}" class="offerPick" ${r.include[o.offerId] ? 'checked' : ''} style="width:auto;" /> `
+                : '';
+              return `<div class="subrow">${cb}<span class="mono">#${o.offerId}</span> ${esc(o.name)} <span class="dates">${esc(o.categoryName)}${o.isSellable ? '' : ' · hidden'}</span>${alreadyBadge}${resBadge}</div>`;
+            }).join('');
+
+        let status;
+        if (!r.scheduleCandidates.length || !r.offers.length) status = '<span class="badge err">error</span>';
+        else if (skipAlready && r.offers.every(o => o.scheduleId === r.chosenScheduleId || !r.include[o.offerId])) status = '<span class="badge dup">skip</span>';
+        else if (issues.length) status = '<span class="badge warn">check</span>';
+        else status = '<span class="badge ok">ready</span>';
+
+        return `<tr>
+          <td class="mono dim">${i + 1}</td>
+          <td class="mono">${esc(r.extId)}</td>
+          <td>${esc(r.label || '')}</td>
+          <td class="dates">${r.dates.join(', ')}</td>
+          <td>${schedCell}</td>
+          <td>${offerCell}</td>
+          <td>${status}</td>
+        </tr>`;
+      }).join('');
+      $('previewTable').innerHTML = head + body;
+
+      // wire dropdowns + checkboxes
+      document.querySelectorAll('.schedPick').forEach(sel => sel.addEventListener('change', e => {
+        matchRows[Number(e.target.dataset.row)].chosenScheduleId = Number(e.target.value);
+        renderPreview();
+      }));
+      document.querySelectorAll('.offerPick').forEach(cb => cb.addEventListener('change', e => {
+        matchRows[Number(e.target.dataset.row)].include[Number(e.target.dataset.offer)] = e.target.checked;
+        renderPreview();
+      }));
+
+      const nOk = matchRows.filter(r => r.scheduleCandidates.length && r.offers.length).length;
+      const nNoSched = matchRows.filter(r => !r.scheduleCandidates.length).length;
+      const nNoOffer = matchRows.filter(r => !r.offers.length).length;
+      const nDup = matchRows.filter(r => r.offers.length > 1).length;
+      const nAmb = matchRows.filter(r => r.scheduleCandidates.length > 1).length;
+      $('matchSummary').innerHTML =
+        `<div>Dishes in file: <span class="n">${matchRows.length}</span></div>` +
+        `<div>Matched: <span class="n" style="color:var(--ok);">${nOk}</span></div>` +
+        `<div>No exact schedule: <span class="n" style="color:var(--err);">${nNoSched}</span></div>` +
+        `<div>Not in catalogue: <span class="n" style="color:var(--err);">${nNoOffer}</span></div>` +
+        (nDup ? `<div>Duplicate ext IDs: <span class="n" style="color:var(--warn);">${nDup}</span></div>` : '') +
+        (nAmb ? `<div>Ambiguous schedules: <span class="n" style="color:var(--warn);">${nAmb}</span></div>` : '');
+      $('previewTitle').textContent = `Matching preview — store ${$('storeId').value}`;
+    }
+
+    $('skipAlready').addEventListener('change', renderPreview);
+
+    // ── Apply ────────────────────────────────────────────────────────────────
+    $('applyBtn').addEventListener('click', async () => {
+      if (!session) return;
+      const skipAlready = $('skipAlready').checked;
+
+      // Build the work list: one job per included offer of each matched row.
+      const jobs = [];
+      for (const r of matchRows) {
+        if (!r.scheduleCandidates.length || !r.offers.length || r.chosenScheduleId == null) continue;
+        for (const o of r.offers) {
+          if (!r.include[o.offerId]) continue;
+          if (skipAlready && o.scheduleId === r.chosenScheduleId) {
+            r.results[o.offerId] = { status: 'skip', message: 'already set' };
+            continue;
+          }
+          jobs.push({ row: r, offer: o });
+        }
+      }
+      renderPreview();
+      if (!jobs.length) { alert('Nothing to do — no matched dishes need a schedule change.'); return; }
+      if (!confirm(`Assign schedules to ${jobs.length} catalogue item(s)?`)) return;
+
+      $('applyBtn').disabled = true;
+      $('progressBar').style.display = 'block';
+      $('resultSummary').style.display = 'flex';
+      let ok = 0, fail = 0;
+      const skipped = matchRows.reduce((n, r) => n + Object.values(r.results).filter(x => x.status === 'skip').length, 0);
+      $('sumTotal').textContent = jobs.length;
+      $('sumSkip').textContent = skipped;
+
+      for (let i = 0; i < jobs.length; i++) {
+        const { row, offer } = jobs[i];
+        try {
+          const r = await fetch(FN, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              mode: 'apply-one',
+              token: session.token,
+              storeId: $('storeId').value.trim(),
+              catalogId: session.catalogId,
+              offerId: offer.offerId,
+              scheduleId: row.chosenScheduleId,
+              apiBase: getApiBase(),
+            }),
+          });
+          const data = await r.json();
+          if (!r.ok || data.error) throw new Error(data.error || ('HTTP ' + r.status));
+          if (data.ok) {
+            ok++;
+            offer.scheduleId = data.appliedScheduleId;
+            row.results[offer.offerId] = { status: 'ok', message: 'assigned' };
+          } else {
+            fail++;
+            row.results[offer.offerId] = { status: 'err', message: data.warning || 'unexpected response' };
+          }
+        } catch (err) {
+          fail++;
+          row.results[offer.offerId] = { status: 'err', message: err.message.slice(0, 120) };
+        }
+        $('sumOk').textContent = ok;
+        $('sumErr').textContent = fail;
+        $('progressFill').style.width = `${((i + 1) / jobs.length) * 100}%`;
+        renderPreview();
+      }
+
+      $('applyBtn').disabled = false;
+      if (fail) alert(`Done with ${fail} failure(s) — check the per-item badges. If the session token expired, reload the store (step 1) and re-apply; already-assigned items will be skipped.`);
+    });
+
+    // ── utils ────────────────────────────────────────────────────────────────
+    function show(id, text) { const el = $(id); el.style.display = 'block'; el.textContent = text; }
+    function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  </script>
+</body>
+</html>
