@@ -202,6 +202,12 @@
     let matchRows = [];      // grouped per external ID with matching results
 
     const dateKey = (dates) => dates.join('|');
+    // schedule name lookup across ALL schedules (incl. day-of-week ones —
+    // a dish's current schedule can be any of them)
+    function scheduleName(id) {
+      const s = session && session.schedules.find(x => x.id === id);
+      return s ? s.name : null;
+    }
 
     // ── Step 1: load ─────────────────────────────────────────────────────────
     $('loadBtn').addEventListener('click', async () => {
@@ -441,11 +447,26 @@
               const already = r.chosenScheduleId != null && o.scheduleId === r.chosenScheduleId;
               const res = r.results[o.offerId];
               const resBadge = res ? ` <span class="badge ${res.status === 'ok' ? 'ok' : res.status === 'skip' ? 'dup' : 'err'}">${esc(res.message)}</span>` : '';
-              const alreadyBadge = !res && already ? ' <span class="badge dup">already set</span>' : '';
               const cb = r.offers.length > 1
                 ? `<input type="checkbox" data-row="${i}" data-offer="${o.offerId}" class="offerPick" ${r.include[o.offerId] ? 'checked' : ''} style="width:auto;" /> `
                 : '';
-              return `<div class="subrow">${cb}<span class="mono">#${o.offerId}</span> ${esc(o.name)} <span class="dates">${esc(o.categoryName)}${o.isSellable ? '' : ' · hidden'}</span>${alreadyBadge}${resBadge}</div>`;
+              // current state: visibility + current schedule (by name) + what would change
+              const visBadge = o.isSellable
+                ? '<span class="badge ok">visible</span>'
+                : '<span class="badge idle">hidden</span>';
+              const curName = o.scheduleId != null ? (scheduleName(o.scheduleId) || ('#' + o.scheduleId)) : null;
+              let schedInfo;
+              if (res && res.status === 'ok') {
+                schedInfo = `<span class="dates">now on: ${esc(scheduleName(o.scheduleId) || o.scheduleId)}</span>`;
+              } else if (already) {
+                schedInfo = `<span class="badge dup">already on this schedule</span>`;
+              } else if (curName) {
+                schedInfo = `<span class="badge warn" title="Assigning will REPLACE the current schedule">now: ${esc(curName)} → will be replaced</span>`;
+              } else {
+                schedInfo = `<span class="dates">no schedule yet</span>`;
+              }
+              return `<div class="subrow">${cb}<span class="mono">#${o.offerId}</span> ${esc(o.name)} <span class="dates">${esc(o.categoryName)}</span></div>
+                      <div class="subrow" style="margin-left:${r.offers.length > 1 ? '22px' : '0'};">${visBadge} ${schedInfo}${resBadge}</div>`;
             }).join('');
 
         let status;
@@ -489,6 +510,14 @@
 
       const nSelected = matchRows.filter(r => r.selected && r.scheduleCandidates.length && r.offers.length).length;
       const nOk = matchRows.filter(r => r.scheduleCandidates.length && r.offers.length).length;
+      // items whose CURRENT schedule would be replaced by a different one
+      let nReplace = 0;
+      for (const r of matchRows) {
+        if (!r.selected || !r.scheduleCandidates.length) continue;
+        for (const o of r.offers) {
+          if (r.include[o.offerId] && o.scheduleId != null && o.scheduleId !== r.chosenScheduleId) nReplace++;
+        }
+      }
       const nNoSched = matchRows.filter(r => !r.scheduleCandidates.length).length;
       const nNoOffer = matchRows.filter(r => !r.offers.length).length;
       const nDup = matchRows.filter(r => r.offers.length > 1).length;
@@ -497,6 +526,7 @@
         `<div>Dishes in file: <span class="n">${matchRows.length}</span></div>` +
         `<div>Matched: <span class="n" style="color:var(--ok);">${nOk}</span></div>` +
         `<div>Selected to write: <span class="n" style="color:var(--accent);">${nSelected}</span></div>` +
+        (nReplace ? `<div>Will replace an existing schedule: <span class="n" style="color:var(--warn);">${nReplace}</span></div>` : '') +
         `<div>No exact schedule: <span class="n" style="color:var(--err);">${nNoSched}</span></div>` +
         `<div>Not in catalogue: <span class="n" style="color:var(--err);">${nNoOffer}</span></div>` +
         (nDup ? `<div>Duplicate ext IDs: <span class="n" style="color:var(--warn);">${nDup}</span></div>` : '') +
@@ -527,7 +557,10 @@
       }
       renderPreview();
       if (!jobs.length) { alert('Nothing to do — no selected dishes need a schedule change. Tick the checkboxes of the lines you want to write.'); return; }
-      if (!confirm(`Assign schedules to ${jobs.length} catalogue item(s)?`)) return;
+      const nReplacing = jobs.filter(j => j.offer.scheduleId != null && j.offer.scheduleId !== j.row.chosenScheduleId).length;
+      const msg = `Assign schedules to ${jobs.length} catalogue item(s)?` +
+        (nReplacing ? `\n\n⚠ ${nReplacing} of them are currently on a DIFFERENT schedule, which will be REPLACED (the dish leaves that schedule).` : '');
+      if (!confirm(msg)) return;
 
       $('applyBtn').disabled = true;
       $('progressBar').style.display = 'block';
