@@ -390,6 +390,8 @@
           scheduleCandidates: candidates,
           chosenScheduleId: candidates.length ? candidates[0].id : null,
           offers,
+          // row-level selection (checkbox per line, GonnaOrder-style)
+          selected: candidates.length > 0 && offers.length > 0,
           // per-offer include flags (duplicates default to ALL included)
           include: Object.fromEntries(offers.map(o => [o.offerId, true])),
           results: {},   // offerId → { status, message }
@@ -411,9 +413,15 @@
 
     function renderPreview() {
       const skipAlready = $('skipAlready').checked;
-      const head = '<tr><th></th><th>Ext ID</th><th>Dish</th><th>Active dates</th><th>Matched schedule</th><th>Catalogue item(s)</th><th>Status</th></tr>';
+      const actionable = matchRows.filter(r => r.scheduleCandidates.length && r.offers.length);
+      const allSelected = actionable.length > 0 && actionable.every(r => r.selected);
+      const head = `<tr><th><input type="checkbox" id="selAll" ${allSelected ? 'checked' : ''} style="width:auto;" title="Select / deselect all" /></th><th></th><th>Ext ID</th><th>Dish</th><th>Active dates</th><th>Matched schedule</th><th>Catalogue item(s)</th><th>Status</th></tr>`;
       const body = matchRows.map((r, i) => {
         const issues = rowIssues(r);
+        const actionableRow = r.scheduleCandidates.length && r.offers.length;
+        const rowCb = actionableRow
+          ? `<input type="checkbox" data-row="${i}" class="rowPick" ${r.selected ? 'checked' : ''} style="width:auto;" />`
+          : '';
         const schedCell = !r.scheduleCandidates.length
           ? '<span class="badge err">no exact match</span>'
           : r.scheduleCandidates.length === 1
@@ -437,11 +445,13 @@
 
         let status;
         if (!r.scheduleCandidates.length || !r.offers.length) status = '<span class="badge err">error</span>';
+        else if (!r.selected) status = '<span class="badge idle">not selected</span>';
         else if (skipAlready && r.offers.every(o => o.scheduleId === r.chosenScheduleId || !r.include[o.offerId])) status = '<span class="badge dup">skip</span>';
         else if (issues.length) status = '<span class="badge warn">check</span>';
         else status = '<span class="badge ok">ready</span>';
 
-        return `<tr>
+        return `<tr${!actionableRow || r.selected ? '' : ' style="opacity:0.55;"'}>
+          <td>${rowCb}</td>
           <td class="mono dim">${i + 1}</td>
           <td class="mono">${esc(r.extId)}</td>
           <td>${esc(r.label || '')}</td>
@@ -462,7 +472,17 @@
         matchRows[Number(e.target.dataset.row)].include[Number(e.target.dataset.offer)] = e.target.checked;
         renderPreview();
       }));
+      document.querySelectorAll('.rowPick').forEach(cb => cb.addEventListener('change', e => {
+        matchRows[Number(e.target.dataset.row)].selected = e.target.checked;
+        renderPreview();
+      }));
+      const selAll = document.getElementById('selAll');
+      if (selAll) selAll.addEventListener('change', e => {
+        for (const r of matchRows) if (r.scheduleCandidates.length && r.offers.length) r.selected = e.target.checked;
+        renderPreview();
+      });
 
+      const nSelected = matchRows.filter(r => r.selected && r.scheduleCandidates.length && r.offers.length).length;
       const nOk = matchRows.filter(r => r.scheduleCandidates.length && r.offers.length).length;
       const nNoSched = matchRows.filter(r => !r.scheduleCandidates.length).length;
       const nNoOffer = matchRows.filter(r => !r.offers.length).length;
@@ -471,6 +491,7 @@
       $('matchSummary').innerHTML =
         `<div>Dishes in file: <span class="n">${matchRows.length}</span></div>` +
         `<div>Matched: <span class="n" style="color:var(--ok);">${nOk}</span></div>` +
+        `<div>Selected to write: <span class="n" style="color:var(--accent);">${nSelected}</span></div>` +
         `<div>No exact schedule: <span class="n" style="color:var(--err);">${nNoSched}</span></div>` +
         `<div>Not in catalogue: <span class="n" style="color:var(--err);">${nNoOffer}</span></div>` +
         (nDup ? `<div>Duplicate ext IDs: <span class="n" style="color:var(--warn);">${nDup}</span></div>` : '') +
@@ -488,6 +509,7 @@
       // Build the work list: one job per included offer of each matched row.
       const jobs = [];
       for (const r of matchRows) {
+        if (!r.selected) continue;
         if (!r.scheduleCandidates.length || !r.offers.length || r.chosenScheduleId == null) continue;
         for (const o of r.offers) {
           if (!r.include[o.offerId]) continue;
@@ -499,7 +521,7 @@
         }
       }
       renderPreview();
-      if (!jobs.length) { alert('Nothing to do — no matched dishes need a schedule change.'); return; }
+      if (!jobs.length) { alert('Nothing to do — no selected dishes need a schedule change. Tick the checkboxes of the lines you want to write.'); return; }
       if (!confirm(`Assign schedules to ${jobs.length} catalogue item(s)?`)) return;
 
       $('applyBtn').disabled = true;
