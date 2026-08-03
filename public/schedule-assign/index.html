@@ -280,11 +280,16 @@
           // SheetJS sniffs the real format — including "fake .xls" files that
           // are actually an HTML table (our weekly menu export is one).
           //
-          // IMPORTANT: cellDates + raw:true. With raw:false SheetJS re-FORMATS
-          // recognised dates using a US M/D/YY pattern ("2026-08-10" in the
-          // file becomes the string "8/10/26"), which an EU dd/mm parser then
-          // reads as 8 October. Date objects avoid the ambiguity entirely.
-          const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+          // IMPORTANT — two SheetJS traps, both hit by real weekly exports:
+          // 1. read raw:true — without it the HTML parser date-sniffs cell
+          //    TEXT: external IDs like "26-1" become Date objects (shown as
+          //    "Fri Dec 31 1971 …") even though the exporter marks the cell
+          //    as text via mso-number-format. raw:true keeps HTML/CSV cells
+          //    as the literal strings ("26-1", "2026-08-17").
+          // 2. cellDates:true — for REAL .xlsx files date cells become Date
+          //    objects instead of locale-formatted strings ("8/10/26" US
+          //    style), which an EU dd/mm parser would misread.
+          const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', raw: true, cellDates: true });
           const sheet = wb.Sheets[wb.SheetNames[0]];
           const rows = XLSX.utils.sheet_to_json(sheet, { raw: true, defval: '' });
           if (!rows.length) throw new Error('No data rows found in the first sheet.');
