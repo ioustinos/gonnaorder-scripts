@@ -196,10 +196,20 @@ Captured live 2026-08-03 by watching the admin UI on parent store 6423
   touched in the captured flow.
 - The v1 catalog (`GET /api/v1/user/stores/{id}/catalog`) already exposes
   `externalProductId`, `scheduleId` and `isSellable` per offer — no
-  per-offer GETs needed for matching. NOTE: external IDs are NOT unique in
-  6423 — 16 ext IDs exist on two offers each (old/new duplicate dishes,
-  e.g. "Lemon Chicken Bowl" / "Lemon Chicken Bowl."). schedule-assign
-  surfaces duplicates with per-offer checkboxes (default: update all).
+  per-offer GETs needed for matching. NOTE: external IDs were NOT unique in
+  6423 — 16 ext IDs existed on two offers each (old/new duplicate dishes);
+  Ioustinos cleaned them 2026-08-03. schedule-assign still surfaces any
+  duplicates with per-offer checkboxes (default: update all).
+- **External ID scheme in 6423** (verified live 2026-08-03, zero
+  exceptions): a dish WITHOUT variants has a plain numeric ext ID (`47`);
+  a dish WITH variants stores its PARENT offer as **`NNN-1`** and its
+  variants as `NNN-2`, `NNN-3`, … (196 of 196 variant dishes). No base
+  exists in both plain and dashed form. The weekly-menu Excel export
+  emits the bare base (`249`), so variant dishes show "not in catalogue"
+  in schedule-assign. **Deliberate decision (Ioustinos, 2026-08-03): the
+  script does NOT map `NNN` → `NNN-1`** — the fix belongs in the export
+  on the new site (emit `NNN-1` for variant dishes). Don't add the
+  mapping here without asking.
 - **SheetJS date trap** (client-side): reading the weekly-menu `.xls`
   (really an HTML table) with `raw:false` re-formats ISO dates
   "2026-08-10" into US-style strings "8/10/26" — an EU day-first parser
