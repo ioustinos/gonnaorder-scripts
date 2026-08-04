@@ -58,6 +58,7 @@
     .preview-scroll { max-height: 360px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
     .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; }
     .badge.ok { background: rgba(52, 199, 89, 0.15); color: var(--ok); }
+    .badge.upd { background: rgba(79, 140, 255, 0.15); color: var(--accent); }
     .badge.err { background: rgba(255, 69, 58, 0.15); color: var(--err); }
     .badge.warn { background: rgba(255, 176, 32, 0.15); color: var(--warn); }
     .badge.dup  { background: rgba(176, 132, 255, 0.15); color: #c4b5fd; }
@@ -131,6 +132,11 @@
         <div id="dropText">Drop a CSV or Excel file here, or click to choose.</div>
       </label>
       <div class="help">Columns: <code>code</code>, <code>discount</code>, <code>discountType</code> (<code>PERCENTILE</code> or <code>MONETARY</code>), <code>type</code> (<code>MULTI_USE</code> or <code>ONE_TIME_USE</code>), <code>orderMinAmount</code>, <code>startDate</code>, <code>endDate</code>, <code>isActive</code>, <code>externalId</code>. Only <code>code</code> and <code>discount</code> are required.</div>
+      <label style="display:flex; align-items:center; gap:8px; margin-top:12px; cursor:pointer; font-size:13px; color:var(--text);">
+        <input type="checkbox" id="upsertToggle" checked style="accent-color:var(--accent);" />
+        Update existing vouchers with the same code (upsert)
+      </label>
+      <div class="help" style="margin-left:24px;">When on, codes that already exist in the store are <em>updated</em> with the row's values (dates, discount, min amount, active) instead of being skipped as duplicates.</div>
     </div>
 
     <div class="panel" id="previewPanel" style="display:none;">
@@ -145,6 +151,7 @@
       <div class="summary" id="summary" style="display:none;">
         <div>Total: <span class="n" id="sumTotal">0</span></div>
         <div>Created: <span class="n" id="sumOk" style="color:var(--ok);">0</span></div>
+        <div>Updated: <span class="n" id="sumUpd" style="color:var(--accent);">0</span></div>
         <div>Duplicates: <span class="n" id="sumDup" style="color:#c4b5fd;">0</span></div>
         <div>Failed: <span class="n" id="sumErr" style="color:var(--err);">0</span></div>
       </div>
@@ -171,8 +178,10 @@
     const summaryEl = document.getElementById('summary');
     const sumTotal = document.getElementById('sumTotal');
     const sumOk = document.getElementById('sumOk');
+    const sumUpd = document.getElementById('sumUpd');
     const sumDup = document.getElementById('sumDup');
     const sumErr = document.getElementById('sumErr');
+    const upsertToggle = document.getElementById('upsertToggle');
 
     // Remember username (only) across sessions so the user just types their password each time.
     const REMEMBER_KEY = 'gonnaorder.username';
@@ -300,6 +309,7 @@
         invalid: '<span class="badge err">invalid</span>',
         importing: '<span class="badge warn">importing…</span>',
         created: '<span class="badge ok">created</span>',
+        updated: '<span class="badge upd">updated</span>',
         duplicate: '<span class="badge dup">duplicate</span>',
         failed: '<span class="badge err">failed</span>',
       };
@@ -386,11 +396,37 @@
       importBtn.disabled = true;
       progressBar.style.display = '';
       summaryEl.style.display = '';
-      let ok = 0, dup = 0, err = 0, processed = 0;
+      let ok = 0, upd = 0, dup = 0, err = 0, processed = 0;
       sumTotal.textContent = valid.length;
       sumOk.textContent = '0';
+      sumUpd.textContent = '0';
       sumDup.textContent = '0';
       sumErr.textContent = '0';
+
+      // Upsert: prefetch ALL existing voucher codes → ids in one call, so
+      // the function knows create vs update per row without extra lookups.
+      let codeToId = {};
+      if (upsertToggle.checked) {
+        importBtn.textContent = 'Fetching existing vouchers…';
+        try {
+          const res = await fetch('/api/list-vouchers', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ username, password, storeId: Number(storeId), mode: 'code-map', apiBase: getApiBase() }),
+          });
+          const body = await res.json();
+          if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+          codeToId = body.codeToId || {};
+          if (body.truncated) {
+            alert('Warning: the store has more vouchers than could be fetched — some existing codes may import as "duplicate" instead of updating.');
+          }
+        } catch (e) {
+          alert('Could not fetch existing vouchers for upsert: ' + e.message + '\n\nImport aborted — nothing was changed. Retry, or untick the upsert box to run insert-only.');
+          importBtn.disabled = false;
+          importBtn.textContent = `Import ${valid.length} voucher${valid.length === 1 ? '' : 's'}`;
+          return;
+        }
+      }
 
       // Mark all valid rows as importing
       parsedRows.forEach((r, i) => {
@@ -413,6 +449,7 @@
         endDate: r.endDate || null,
         isActive: r.isActive,
         externalId: r.externalId || null,
+        existingId: codeToId[r.code] || null,
       });
 
       for (let c = 0; c < chunks.length; c++) {
@@ -454,7 +491,11 @@
         if (body) {
           body.results.forEach((result, vi) => {
             const idx = parsedRows.findIndex(r => r === chunk[vi]);
-            if (result.ok) {
+            if (result.ok && result.action === 'updated') {
+              updateRowStatus(idx, 'updated', '');
+              parsedRows[idx]._errors = [];
+              upd++;
+            } else if (result.ok) {
               updateRowStatus(idx, 'created', '');
               parsedRows[idx]._errors = [];
               ok++;
@@ -470,6 +511,7 @@
             processed++;
             progressFill.style.width = `${Math.round((processed / valid.length) * 100)}%`;
             sumOk.textContent = ok;
+            sumUpd.textContent = upd;
             sumDup.textContent = dup;
             sumErr.textContent = err;
           });

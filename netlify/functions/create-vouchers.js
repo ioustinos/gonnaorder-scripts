@@ -68,8 +68,15 @@ export const handler = async (event) => {
   const results = [];
   for (const row of rows) {
     try {
+      if (row.existingId) {
+        // Upsert: the client pre-resolved this code to an existing voucher id
+        // (via list-vouchers mode "code-map") — update it instead of creating.
+        const voucher = await updateVoucher(goApi, jwt, storeId, row);
+        results.push({ code: row.code, ok: true, action: "updated", voucherId: voucher?.id ?? Number(row.existingId) });
+        continue;
+      }
       const voucher = await createVoucher(goApi, jwt, storeId, row);
-      results.push({ code: row.code, ok: true, voucherId: voucher?.id ?? null });
+      results.push({ code: row.code, ok: true, action: "created", voucherId: voucher?.id ?? null });
     } catch (e) {
       results.push({
         code: row.code,
@@ -161,6 +168,76 @@ async function createVoucher(goApi, jwt, storeId, row) {
     throw err;
   }
   // Some endpoints return 204; others return the created object.
+  if (res.status === 204) return {};
+  return res.json().catch(() => ({}));
+}
+
+// Update an existing voucher. Endpoint + payload captured live from the
+// admin UI on 2026-08-04 (store 6423, voucher ARIS20, id 149219):
+//   PUT /api/v1/stores/{storeId}/customer-voucher/{id}  → 201
+//   {"code","startDate","endDate","discount","initialValue","type",
+//    "discountType","isActive","categoryIds":[],"scheduleId":"null",
+//    "durationInMonths":null}
+// Notes vs the create payload:
+//   - categoryIds is [] (create sends null)
+//   - initialValue = discount (the UI echoes the loaded value; server sets
+//     initialValue = discount at creation, so this resets a ONE_TIME_USE
+//     voucher's value to the fresh face value — the right semantics here)
+//   - the captured payload had NO orderMinAmount / externalId (the edited
+//     voucher had neither) — we include orderMinAmount since the CSV carries
+//     it and it shares the create DTO; if the API ever 400s on it we retry
+//     once without it.
+async function updateVoucher(goApi, jwt, storeId, row) {
+  const now = new Date();
+  const sixMonthsLater = new Date(now);
+  sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+
+  const payload = {
+    code: String(row.code),
+    startDate: row.startDate ? toIso(row.startDate) : now.toISOString(),
+    endDate: row.endDate ? toIso(row.endDate) : sixMonthsLater.toISOString(),
+    discount: Number(row.discount),
+    orderMinAmount: Number(row.orderMinAmount) || 0,
+    initialValue: Number(row.discount),
+    type: row.type || "MULTI_USE",
+    discountType: row.discountType || "PERCENTILE",
+    isActive: row.isActive === false ? false : true,
+    categoryIds: [],
+    scheduleId: "null",
+    durationInMonths: null,
+  };
+
+  const url = `${goApi}/stores/${encodeURIComponent(storeId)}/customer-voucher/${encodeURIComponent(row.existingId)}`;
+  let res = await fetch(url, {
+    method: "PUT",
+    headers: { "content-type": "application/json", authorization: `Bearer ${jwt}` },
+    body: JSON.stringify(payload),
+  });
+  if (res.status === 400) {
+    // Possibly the deserializer rejecting a field the captured payload didn't
+    // carry — retry once with the exact captured field set.
+    const { orderMinAmount, ...captured } = payload;
+    res = await fetch(url, {
+      method: "PUT",
+      headers: { "content-type": "application/json", authorization: `Bearer ${jwt}` },
+      body: JSON.stringify(captured),
+    });
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let detail = text.slice(0, 300);
+    let errorCode = null;
+    try {
+      const parsed = JSON.parse(text);
+      const first = parsed?.errors?.[0];
+      errorCode = first?.code || null;
+      detail = first?.message || first?.code || parsed.detail || parsed.message || parsed.error || detail;
+    } catch {}
+    const err = new Error(`update HTTP ${res.status}: ${detail}`);
+    err.errorCode = errorCode;
+    err.httpStatus = res.status;
+    throw err;
+  }
   if (res.status === 204) return {};
   return res.json().catch(() => ({}));
 }

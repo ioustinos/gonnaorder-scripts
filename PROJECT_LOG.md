@@ -117,3 +117,30 @@ no superset fallback.
 - Verified offline end-to-end against the real `Week_of_20260810.xls` + the
   captured schedule list: 22 dishes → week schedule, 12 → each weekday, 0
   errors. Live verification on the deployed site is the remaining step.
+## 2026-08-04 — Voucher importer: upsert (insert-or-update by code)
+
+Ioustinos asked for upsert: rows whose code already exists should update the
+existing voucher instead of landing in the "duplicate" bucket.
+
+Captured live from the admin UI (usual MCP method — he edited voucher
+ARIS20 on store 6423 while a main-world interceptor recorded the calls):
+
+- `PUT /api/v1/stores/{storeId}/customer-voucher/{id}` → 201, payload
+  documented in CLAUDE.md. `initialValue` = discount; `categoryIds: []`.
+- List pagination metadata confirmed: `{ totalPages, totalElements,
+  pageNumber, pageSize, data }`. `size=-1` is ignored (falls back to 20).
+
+Implementation:
+
+- `list-vouchers.js`: new `mode: "code-map"` — pages through all vouchers
+  (size=100, up to 60 pages) and returns `{ codeToId, total, truncated }`.
+- `vouchers/index.html`: "Update existing vouchers (upsert)" checkbox,
+  default ON. On import it prefetches the code map once, annotates each row
+  with `existingId`, and shows a new blue "updated" status + Updated counter.
+  If the map fetch fails the import aborts cleanly before any writes.
+- `create-vouchers.js`: rows with `existingId` are PUT (update) instead of
+  POST (create); per-row result carries `action: "created" | "updated"`.
+  PUT includes `orderMinAmount` (not in the captured payload — that voucher
+  had none) with a one-shot fallback to the exact captured field set on 400.
+
+Batch size stays 50 — upsert is still one GonnaOrder call per row.

@@ -272,17 +272,25 @@ re-tested from a dev sandbox — the sandbox has no network route to
 - Voucher object fields seen: `id`, `code`, `discount`, `discountType`
   (`PERCENTILE` | `MONETARY`), `type` (`MULTI_USE` | `ONE_TIME_USE`),
   `startDate`, `endDate`, `isActive`, `initialValue`.
-- **Pagination is UNPROVEN.** The n8n flow only ever fetched a single page
-  with `size=100` and never sent `page`. `vouchers-export.js` probes paging:
-  it fetches `?size=100&page=N`, dedupes by `id`, and if a page beyond the
-  first returns only already-seen ids (server ignored `page` and re-served
-  page 0) it stops and sets `paginationSupported: false`. When only one full
-  page came back and paging couldn't be confirmed, it returns
-  `truncated: true` and the UI warns the export may be incomplete. Re-measure
-  against a store with >100 vouchers before trusting large exports.
-- Update a voucher (not used by these scripts yet, but in the n8n flow):
-  `PUT /api/v1/stores/{storeId}/customer-voucher/{id}` with the voucher's
-  own fields plus the new `discount`.
+- **Pagination CONFIRMED (2026-08-04, live capture).** The list response is
+  `{ totalPages, totalElements, pageNumber, pageSize, data: [...] }` —
+  page with `?size=100&page=N` (0-indexed) and stop at `totalPages - 1`.
+  Note: `size=-1` (which the admin UI itself sends) is NOT honored — the
+  server fell back to pageSize 20. `list-vouchers.js` mode `code-map` uses
+  this to build a full code → id map for upserts. (`vouchers-export.js`
+  still carries its older probe-based paging — safe, just superseded.)
+- **Update a voucher (upsert path, captured live 2026-08-04** from the admin
+  UI editing voucher ARIS20/id 149219 on store 6423):
+  `PUT /api/v1/stores/{storeId}/customer-voucher/{id}` → **201**. Payload:
+  `{"code","startDate","endDate","discount","initialValue","type",
+  "discountType","isActive","categoryIds":[],"scheduleId":"null",
+  "durationInMonths":null}`. Differences vs create: `categoryIds` is `[]`
+  (create sends `null`), `initialValue` = discount (create sends `null`;
+  server derives = discount at creation — GET of the voucher confirmed
+  `initialValue: 20.00` for `discount: 20.00`), and the captured payload had
+  no `orderMinAmount`/`externalId` (that voucher had neither).
+  `create-vouchers.js` includes `orderMinAmount` in the PUT (shared DTO with
+  create) and falls back once to the exact captured field set on a 400.
 
 ## Store settings API notes (settings-copy)
 
