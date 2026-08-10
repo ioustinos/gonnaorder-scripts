@@ -157,7 +157,7 @@ export const handler = async (event) => {
     // always sends the complete object, and partial bodies are a known
     // GonnaOrder trap (silently ignored on PATCH /stores/{id}).
     if (mode === "apply-one") {
-      const { storeId, catalogId, offerId, scheduleId, email, password } = body;
+      const { storeId, catalogId, offerId, scheduleId, email, password, makeVisible } = body;
       let { token } = body;
       if (!token || !storeId || !catalogId || !offerId || scheduleId == null) {
         return json(400, { error: "token, storeId, catalogId, offerId, scheduleId are required" });
@@ -204,7 +204,10 @@ export const handler = async (event) => {
         isStockCheckEnabled:      g.isStockCheckEnabled ?? false,
         countAgainstSlots:        String(countAgainstSlots),
         stockLevel:               g.stockLevel ?? 0,
-        sellable:                 g.isSellable ?? false,   // GET isSellable → POST sellable
+        // GET isSellable → POST sellable. makeVisible=true forces the dish
+        // visible as part of the assignment (Ioustinos's weekly flow:
+        // schedule + visible together); otherwise visibility is preserved.
+        sellable:                 makeVisible ? true : (g.isSellable ?? false),
         itemType:                 g.itemType || "Orderable",
         name:                     g.name,
         shortDescription:         g.shortDescription ?? "",

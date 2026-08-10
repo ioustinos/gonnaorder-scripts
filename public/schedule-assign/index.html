@@ -155,7 +155,10 @@
         <strong id="previewTitle">Matching preview</strong>
         <div style="display:flex; gap:8px; align-items:center;">
           <label style="margin:0; display:flex; align-items:center; gap:6px; font-size:12px;">
-            <input type="checkbox" id="skipAlready" checked style="width:auto;" /> skip dishes already on the right schedule
+            <input type="checkbox" id="makeVisible" checked style="width:auto;" /> also make assigned dishes visible
+          </label>
+          <label style="margin:0; display:flex; align-items:center; gap:6px; font-size:12px;">
+            <input type="checkbox" id="skipAlready" checked style="width:auto;" /> skip dishes already done
           </label>
           <button type="button" id="applyBtn">Assign schedules</button>
         </div>
@@ -422,8 +425,16 @@
       return issues;
     }
 
+    // A dish is "done" when it's on the right schedule AND (if we're also
+    // making dishes visible) already visible — otherwise it still needs a write.
+    function isDone(r, o) {
+      return r.chosenScheduleId != null && o.scheduleId === r.chosenScheduleId
+        && (!$('makeVisible').checked || o.isSellable);
+    }
+
     function renderPreview() {
       const skipAlready = $('skipAlready').checked;
+      const makeVis = $('makeVisible').checked;
       const actionable = matchRows.filter(r => r.scheduleCandidates.length && r.offers.length);
       const allSelected = actionable.length > 0 && actionable.every(r => r.selected);
       const head = `<tr><th><input type="checkbox" id="selAll" ${allSelected ? 'checked' : ''} style="width:auto;" title="Select / deselect all" /></th><th></th><th>Ext ID</th><th>Dish</th><th>Active dates</th><th>Matched schedule</th><th>Catalogue item(s)</th><th>Status</th></tr>`;
@@ -453,11 +464,15 @@
               // current state: visibility + current schedule (by name) + what would change
               const visBadge = o.isSellable
                 ? '<span class="badge ok">visible</span>'
-                : '<span class="badge idle">hidden</span>';
+                : (makeVis && !res
+                    ? '<span class="badge warn">hidden → will be made visible</span>'
+                    : '<span class="badge idle">hidden</span>');
               const curName = o.scheduleId != null ? (scheduleName(o.scheduleId) || ('#' + o.scheduleId)) : null;
               let schedInfo;
               if (res && res.status === 'ok') {
                 schedInfo = `<span class="dates">now on: ${esc(scheduleName(o.scheduleId) || o.scheduleId)}</span>`;
+              } else if (already && isDone(r, o)) {
+                schedInfo = `<span class="badge dup">already done</span>`;
               } else if (already) {
                 schedInfo = `<span class="badge dup">already on this schedule</span>`;
               } else if (curName) {
@@ -472,7 +487,7 @@
         let status;
         if (!r.scheduleCandidates.length || !r.offers.length) status = '<span class="badge err">error</span>';
         else if (!r.selected) status = '<span class="badge idle">not selected</span>';
-        else if (skipAlready && r.offers.every(o => o.scheduleId === r.chosenScheduleId || !r.include[o.offerId])) status = '<span class="badge dup">skip</span>';
+        else if (skipAlready && r.offers.every(o => isDone(r, o) || !r.include[o.offerId])) status = '<span class="badge dup">skip</span>';
         else if (issues.length) status = '<span class="badge warn">check</span>';
         else status = '<span class="badge ok">ready</span>';
 
@@ -535,6 +550,7 @@
     }
 
     $('skipAlready').addEventListener('change', renderPreview);
+    $('makeVisible').addEventListener('change', renderPreview);
 
     // ── Apply ────────────────────────────────────────────────────────────────
     $('applyBtn').addEventListener('click', async () => {
@@ -548,8 +564,8 @@
         if (!r.scheduleCandidates.length || !r.offers.length || r.chosenScheduleId == null) continue;
         for (const o of r.offers) {
           if (!r.include[o.offerId]) continue;
-          if (skipAlready && o.scheduleId === r.chosenScheduleId) {
-            r.results[o.offerId] = { status: 'skip', message: 'already set' };
+          if (skipAlready && isDone(r, o)) {
+            r.results[o.offerId] = { status: 'skip', message: 'already done' };
             continue;
           }
           jobs.push({ row: r, offer: o });
@@ -570,8 +586,10 @@
       $('sumTotal').textContent = jobs.length;
       $('sumSkip').textContent = skipped;
 
+      const makeVis = $('makeVisible').checked;
       for (let i = 0; i < jobs.length; i++) {
         const { row, offer } = jobs[i];
+        const wasHidden = !offer.isSellable;
         try {
           const r = await fetch(FN, {
             method: 'POST',
@@ -587,6 +605,7 @@
               catalogId: session.catalogId,
               offerId: offer.offerId,
               scheduleId: row.chosenScheduleId,
+              makeVisible: makeVis,
               apiBase: getApiBase(),
             }),
           });
@@ -596,7 +615,8 @@
           if (data.ok) {
             ok++;
             offer.scheduleId = data.appliedScheduleId;
-            row.results[offer.offerId] = { status: 'ok', message: 'assigned' };
+            if (typeof data.isSellable === 'boolean') offer.isSellable = data.isSellable;
+            row.results[offer.offerId] = { status: 'ok', message: makeVis && wasHidden ? 'assigned + made visible' : 'assigned' };
           } else {
             fail++;
             row.results[offer.offerId] = { status: 'err', message: data.warning || 'unexpected response' };
