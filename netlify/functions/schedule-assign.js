@@ -157,17 +157,39 @@ export const handler = async (event) => {
     // always sends the complete object, and partial bodies are a known
     // GonnaOrder trap (silently ignored on PATCH /stores/{id}).
     if (mode === "apply-one") {
-      const { token, storeId, catalogId, offerId, scheduleId } = body;
+      const { storeId, catalogId, offerId, scheduleId, email, password } = body;
+      let { token } = body;
       if (!token || !storeId || !catalogId || !offerId || scheduleId == null) {
         return json(400, { error: "token, storeId, catalogId, offerId, scheduleId are required" });
       }
 
-      const g = await goFetch(
-        apiBase,
-        `/api/v2/user/stores/${storeId}/catalog/${catalogId}/offer/${offerId}`,
-        {},
-        token,
-      );
+      // GonnaOrder JWTs expire after ~10 minutes. Reviewing the preview
+      // usually takes longer than that, so a 401 here is NORMAL, not an
+      // error: re-login with the credentials (sent along by the frontend)
+      // and retry once. The fresh token is returned so the client can use
+      // it for the remaining rows.
+      let refreshedToken = null;
+      let g;
+      try {
+        g = await goFetch(
+          apiBase,
+          `/api/v2/user/stores/${storeId}/catalog/${catalogId}/offer/${offerId}`,
+          {},
+          token,
+        );
+      } catch (err) {
+        if (err.status === 401 && email && password) {
+          token = refreshedToken = await login(apiBase, email, password);
+          g = await goFetch(
+            apiBase,
+            `/api/v2/user/stores/${storeId}/catalog/${catalogId}/offer/${offerId}`,
+            {},
+            token,
+          );
+        } else {
+          throw err;
+        }
+      }
 
       const attrs = g.attributeDtos || [];
       const countAgainstSlots =
@@ -210,6 +232,7 @@ export const handler = async (event) => {
         previousScheduleId: g.scheduleId ?? null,
         appliedScheduleId: resp.scheduleId ?? null,
         isSellable: resp.isSellable,
+        ...(refreshedToken ? { token: refreshedToken } : {}),
         ...(applied ? {} : { warning: "Save returned a different scheduleId than requested" }),
       });
     }

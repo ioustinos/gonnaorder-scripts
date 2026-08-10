@@ -579,6 +579,10 @@
             body: JSON.stringify({
               mode: 'apply-one',
               token: session.token,
+              // credentials ride along so the function can re-login when the
+              // ~10-minute GonnaOrder JWT has expired during preview review
+              email: $('username').value.trim(),
+              password: $('password').value,
               storeId: $('storeId').value.trim(),
               catalogId: session.catalogId,
               offerId: offer.offerId,
@@ -588,6 +592,7 @@
           });
           const data = await r.json();
           if (!r.ok || data.error) throw new Error(data.error || ('HTTP ' + r.status));
+          if (data.token) session.token = data.token; // server refreshed the JWT — reuse for remaining rows
           if (data.ok) {
             ok++;
             offer.scheduleId = data.appliedScheduleId;
