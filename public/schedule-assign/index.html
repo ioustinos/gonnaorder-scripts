@@ -212,6 +212,31 @@
       return s ? s.name : null;
     }
 
+    // Suggest a name for a missing schedule, following the store's own
+    // naming conventions ("Δευτέρα 10 Αυγούστου", "Εβδομάδα 10-14 Αυγούστου",
+    // "30/07&06/08").
+    const GR_DAYS = ['Κυριακή','Δευτέρα','Τρίτη','Τετάρτη','Πέμπτη','Παρασκευή','Σάββατο'];
+    const GR_MONTHS_GEN = ['Ιανουαρίου','Φεβρουαρίου','Μαρτίου','Απριλίου','Μαΐου','Ιουνίου','Ιουλίου','Αυγούστου','Σεπτεμβρίου','Οκτωβρίου','Νοεμβρίου','Δεκεμβρίου'];
+    function suggestScheduleName(dates) {
+      const ds = dates.map(d => {
+        const [y, m, day] = d.split('-').map(Number);
+        return { y, m, day, dow: new Date(Date.UTC(y, m - 1, day)).getUTCDay() };
+      });
+      if (ds.length === 1) {
+        const d = ds[0];
+        return `${GR_DAYS[d.dow]} ${d.day} ${GR_MONTHS_GEN[d.m - 1]}`;
+      }
+      // consecutive run of weekdays in the same month → "Εβδομάδα a-b Month"
+      const sameMonth = ds.every(d => d.m === ds[0].m && d.y === ds[0].y);
+      const consecutive = ds.every((d, i) => i === 0 || Date.UTC(d.y, d.m - 1, d.day) - Date.UTC(ds[i-1].y, ds[i-1].m - 1, ds[i-1].day) === 86400000);
+      if (ds.length >= 4 && sameMonth && consecutive) {
+        return `Εβδομάδα ${ds[0].day}-${ds[ds.length-1].day} ${GR_MONTHS_GEN[ds[0].m - 1]}`;
+      }
+      // fallback: the store's "30/07&06/08" combo style
+      const pad2 = n => String(n).padStart(2, '0');
+      return ds.map(d => `${pad2(d.day)}/${pad2(d.m)}`).join('&');
+    }
+
     // ── Step 1: load ─────────────────────────────────────────────────────────
     $('loadBtn').addEventListener('click', async () => {
       const email = $('username').value.trim();
@@ -445,7 +470,9 @@
           ? `<input type="checkbox" data-row="${i}" class="rowPick" ${r.selected ? 'checked' : ''} style="width:auto;" />`
           : '';
         const schedCell = !r.scheduleCandidates.length
-          ? '<span class="badge err">no exact match</span>'
+          ? `<span class="badge err">no exact match</span>
+             <div class="subrow" style="display:block;">needed: a schedule with exactly ${r.dates.length === 1 ? 'this date' : 'these ' + r.dates.length + ' dates'}<br>
+             suggested name: <code>${esc(suggestScheduleName(r.dates))}</code></div>`
           : r.scheduleCandidates.length === 1
             ? esc(r.scheduleCandidates[0].name) + ` <span class="dates mono">#${r.scheduleCandidates[0].id}</span>`
             : `<select data-row="${i}" class="schedPick">` +
