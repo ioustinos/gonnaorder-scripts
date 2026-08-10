@@ -144,3 +144,28 @@ Implementation:
   had none) with a one-shot fallback to the exact captured field set on 400.
 
 Batch size stays 50 — upsert is still one GonnaOrder call per row.
+
+## 2026-08-10 — Schedule Assigner verified live + hardening round
+
+Ran for real on store 6423 with Week_of_20260817 (81 dishes): all matched
+and assigned. Fixes/features added between first ship and sign-off:
+
+- Per-line selection checkboxes with select-all; only ticked lines are written.
+- Preview shows each item's current visibility and current schedule by name
+  ("now: Εβδομάδα 10-14 Αυγούστου → will be replaced") + replace-count in
+  summary and confirm dialog.
+- SheetJS parse hardening: read with `raw:true` (HTML cells stay literal —
+  ext IDs like "26-1" were being date-sniffed into Date objects) +
+  `cellDates:true` (real-xlsx dates stay unambiguous). The exporter's
+  mso-number-format text hint is IGNORED by SheetJS — raw is the only guard.
+- **GonnaOrder JWTs expire after ~10 minutes.** Reviewing the preview
+  routinely outlives the load-time token → every apply got 401. apply-one
+  now takes credentials along, re-logins on 401, retries once, and returns
+  the fresh token for the remaining rows. (The catalogue editor has the
+  same latent issue — it tells the user to reload instead.)
+- "Also make assigned dishes visible" option (default ON — Ioustinos's
+  weekly flow is schedule + visible together). "Done/skip" accounts for
+  visibility when the option is on.
+- External-ID scheme clarified (see CLAUDE.md): plain `NNN` for dishes
+  without variants, `NNN-1` parent / `NNN-2..` variants for dishes with
+  variants; the weekly exporter was updated (new-site side) to emit `NNN-1`.
