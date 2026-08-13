@@ -49,6 +49,21 @@ Any field absent from your sample may exist — and be destroyed — on others.
   and prove innocence with measurements — not with reasoning about the code.
 
 
+### Compliance status (audit 2026-08-11 — keep this current)
+
+| Script | Write path | RULE #1 status |
+|---|---|---|
+| `schedule-assign.js` | `POST /api/v2/stores/{id}/catalog/{cid}/offer/{oid}` | ✅ pass-through + post-write diff |
+| `orders-export.js`, `vouchers-export.js`, `list-vouchers.js` | POST used only for *search* | ✅ read-only |
+| `create-vouchers.js` | `PUT /stores/{id}/customer-voucher/{vid}` | ❌ **VIOLATES** — never GETs the existing voucher; body built from the CSV row alone, with `categoryIds: []`, `scheduleId: "null"`, `durationInMonths: null` hardcoded. Updating a voucher that has category restrictions or a schedule will strip them. FIX BEFORE NEXT BULK UPDATE RUN. |
+| `catalog-editor.js` | `POST /catalog/{cid}/offer/override` | ⚠️ hand-written field list. Lower blast radius (clone-store customisation records, not the master offer) but unaudited — no post-write diff. |
+| `settings-copy.js` | `PATCH /stores/{id}` | ⚠️ enumerated 20-field list, though built from the target store's own GET. `PUT /stores/{id}/settings` is safe (documented merge semantics, key-by-key fallback). |
+
+**When you fix one of these, bring it up to the full standard — pass-through
+payload AND post-write diff — then update this table. Do not mark a row ✅
+because the code "looks right": prove it by capturing a real admin-UI save and
+diffing it against the payload, the way schedule-assign was fixed.**
+
 ## What this project is
 
 A collection of small web utilities that interact with the GonnaOrder admin
