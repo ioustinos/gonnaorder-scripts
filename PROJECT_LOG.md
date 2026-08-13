@@ -169,3 +169,41 @@ and assigned. Fixes/features added between first ship and sign-off:
 - External-ID scheme clarified (see CLAUDE.md): plain `NNN` for dishes
   without variants, `NNN-1` parent / `NNN-2..` variants for dishes with
   variants; the weekly exporter was updated (new-site side) to emit `NNN-1`.
+
+## 2026-08-11 — INCIDENT: Schedule Assigner cleared 31 dishes' price descriptions
+
+**What happened.** `apply-one` built its POST body from a hand-written list of
+fields, copied from a single captured admin-UI save (offer 690336, Bricher
+Muesli). That dish had no `priceDescription`, so the field was absent from the
+list. GonnaOrder's v2 offer save treats an omitted field as cleared, so every
+dish written during the 17–21 Aug run lost its parent price description. All
+calls returned `201`; nothing surfaced an error.
+
+**Scope, measured live (not assumed).** Dishes with variants on week-17-21
+schedules: 0/31 had a price description vs 96% (160/167) of untouched ones.
+Single-portion dishes were NOT damaged — only 6% of untouched ones carry the
+field at all, so the 24 written ones matching that baseline were left alone
+rather than "restored" with invented data. Names, short/long descriptions,
+prices, images, attributes, variants and variant price descriptions were all
+statistically identical to untouched dishes — nothing else was altered.
+
+**Recovery.** Rebuilt from Ioustinos's GonnaOrder Orders export: `Item Fitpal
+ID` + `Item Variant` give the exact text per external ID. Method validated on
+50 untouched dishes first (36/36 exact where the field exists). All 31 restored
+and verified; the group now sits at 100%. The weekly menu Excel was explicitly
+NOT used — its titles are the new site's, not GonnaOrder's.
+
+**Fixes shipped.**
+- Payload is now built by PASS-THROUGH of the GET response (drop known
+  non-writable keys, apply renames, then set only `scheduleId` and, if asked,
+  `sellable`). Fields GonnaOrder adds later ride along automatically.
+- Post-write audit: every save re-reads the offer and diffs it against the
+  pre-write snapshot; any unintended field change marks the row failed, is
+  reported with before/after, and HALTS the batch.
+- RULE #1 added at the top of CLAUDE.md, outranking everything else.
+
+**Process lesson.** The first diagnosis was reasoning about the code rather
+than measuring. The user was right to insist on live monitoring: attaching to
+his real Chrome and diffing damaged vs untouched dishes turned a hypothesis
+into a proven, scoped root cause in minutes. The captured admin-UI save then
+showed the payload was byte-identical to ours except for that one field.

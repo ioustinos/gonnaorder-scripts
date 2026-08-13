@@ -160,14 +160,14 @@
           <label style="margin:0; display:flex; align-items:center; gap:6px; font-size:12px;">
             <input type="checkbox" id="skipAlready" checked style="width:auto;" /> skip dishes already done
           </label>
-          <button type="button" id="applyBtn" disabled title="Writing is disabled pending investigation">Assign schedules</button>
+          <button type="button" id="applyBtn">Assign schedules</button>
         </div>
       </div>
-      <div class="banner err">
-        ⛔ <strong>Writing is disabled.</strong> Under investigation (2026-08-11): saving an offer through this tool
-        may have cleared the <em>variant price descriptions</em> on dishes that have variants. The save payload was
-        modelled on a dish with NO variants, so it never sends the <code>variants</code> array — GonnaOrder may treat
-        the save as a full replace and drop them. Preview and matching still work; only the write is blocked.
+      <div class="help" style="margin-top:12px;">
+        🛡 Every write echoes the dish's <em>entire</em> current record and changes only the schedule
+        (and visibility, if ticked). After each save the dish is re-read and diffed field by field —
+        if anything else changed, the row is marked failed and shown to you. Added after the 2026-08-11
+        incident where a hand-written payload silently cleared 31 dishes' price descriptions.
       </div>
       <div class="summary" id="matchSummary"></div>
       <div class="preview-scroll">
@@ -588,11 +588,6 @@
     // ── Apply ────────────────────────────────────────────────────────────────
     $('applyBtn').addEventListener('click', async () => {
       if (!session) return;
-      // HARD STOP (2026-08-11): see banner. Writing may clear variant price
-      // descriptions on dishes that have variants. Remove this guard only
-      // after the payload is confirmed to preserve variants.
-      alert('Writing is disabled pending investigation of the variant price-description issue.');
-      return;
       const skipAlready = $('skipAlready').checked;
 
       // Build the work list: one job per included offer of each matched row.
@@ -625,7 +620,9 @@
       $('sumSkip').textContent = skipped;
 
       const makeVis = $('makeVisible').checked;
+      let halted = false;
       for (let i = 0; i < jobs.length; i++) {
+        if (halted) { alert('STOPPED: a save changed a field it should not have. Remaining rows were not written — check the console and tell Claude.'); break; }
         const { row, offer } = jobs[i];
         const wasHidden = !offer.isSellable;
         try {
@@ -658,6 +655,7 @@
           } else {
             fail++;
             row.results[offer.offerId] = { status: 'err', message: data.warning || 'unexpected response' };
+            if (data.collateralDamage) { console.error('COLLATERAL', offer.offerId, data.collateralDamage); halted = true; }
           }
         } catch (err) {
           fail++;

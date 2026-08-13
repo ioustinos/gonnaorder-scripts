@@ -1,5 +1,54 @@
 # CLAUDE.md — GonnaOrder Scripts
 
+## ⛔ RULE #1 — NEVER hand-write a payload for a GonnaOrder write call
+
+**This rule outranks everything else in this file. It applies to every script,
+every endpoint, every store.**
+
+On 2026-08-11 the Schedule Assigner silently wiped the `priceDescription` of
+**31 live dishes**. Nothing crashed; every call returned `201`. The cause: the
+POST body was a hand-written list of fields, copied from one captured admin-UI
+save. That capture happened to be of a dish that had **no** `priceDescription`,
+so the field was never in the list — and because GonnaOrder's v2 offer save
+treats an omitted field as *set to empty*, every dish we touched lost it.
+
+A payload capture proves what **that one object** needed. It is NOT a schema.
+Any field absent from your sample may exist — and be destroyed — on others.
+
+### The four non-negotiables
+
+1. **READ IMMEDIATELY BEFORE WRITE.** GET the current object as the base of
+   every write. Never build a write from cached, listed, or assumed state.
+2. **PASS EVERYTHING THROUGH.** Build the body by copying *every* key the GET
+   returned, then removing only the keys the endpoint is known to reject.
+   Never enumerate the fields you want to keep — enumerate only the ones you
+   drop. A field GonnaOrder adds next month must ride along on its own.
+3. **CHANGE ONLY WHAT YOU INTEND.** One explicit assignment per intended
+   field, written after the pass-through, with a comment saying why. If a
+   change isn't in the user's request, it does not belong in the payload.
+4. **AUDIT AFTER EVERY WRITE.** Re-GET the object and diff it field by field
+   against the pre-write snapshot. Anything that changed beyond the intended
+   set is a FAILURE: surface it, mark the row failed, and **halt the batch**.
+   A `200`/`201` is not proof of correctness — those 31 dishes all returned
+   `201`.
+
+### Also mandatory
+
+- **Never touch content.** Names, short/long descriptions, price descriptions,
+  images and nutrition attributes are the user's data. These scripts move
+  schedules, visibility and explicitly-requested prices — nothing else. If a
+  content field appears in a payload, it is there only to be echoed back
+  unchanged.
+- **Never write during discovery.** When an endpoint's behaviour is unknown,
+  capture a real admin-UI save (chrome-devtools / extension, user drives) and
+  diff it against your payload *before* writing anything.
+- **Dry-run first on anything bulk.** Show the user the per-row before → after
+  and get an explicit go-ahead. Ioustinos reviews; the preview must earn it.
+- **Suspect the tool before the data.** If the user reports something missing
+  right after a run, assume the script did it, disable writing immediately,
+  and prove innocence with measurements — not with reasoning about the code.
+
+
 ## What this project is
 
 A collection of small web utilities that interact with the GonnaOrder admin
@@ -172,6 +221,23 @@ Captured live 2026-08-03 by watching the admin UI on parent store 6423
   schedules use `DAYS_OF_WEEK` and have no `date`. A schedule can in
   principle mix both — schedule-assign only treats all-`DATE_INCLUSIVE`
   schedules as date-matchable.
+- **`priceDescription` is the trap field.** It appears on the offer object
+  ONLY when it is set — a dish without one returns no such key at all. The
+  parent offer carries the portion line shown under the dish title (e.g.
+  "Ψωμί ολικής (60γρ), Φιλέτο μοσχάρι (30γρ)"); each variant carries its own.
+  ~96% of dishes with variants have it. Omitting it from a v2 save CLEARS it.
+  This is what caused the 2026-08-11 incident — see RULE #1.
+- **Recovering a lost `priceDescription`:** the Orders export
+  (`Item Fitpal ID` + `Item Variant` columns) records the exact text per
+  external ID as it was at order time. Validated 2026-08-11 against 50
+  untouched dishes: every dish that has the field matched its order history
+  exactly (36/36; the other 14 were single-portion dishes that legitimately
+  have no such field). Do NOT use the weekly menu Excel for this — its titles
+  and portion lists are the new site's, not GonnaOrder's.
+- **Single-portion dishes normally have NO `priceDescription`** (only 6% do)
+  whereas dishes with variants normally DO (96%). Use that baseline before
+  concluding a field is "missing" — and never "restore" a field onto dishes
+  whose peers don't have it.
 - **Read one offer (v2!):**
   `GET /api/v2/user/stores/{storeId}/catalog/{catalogId}/offer/{offerId}`
   → full offer incl. `scheduleId`, `isSellable`, `attributeDtos`,

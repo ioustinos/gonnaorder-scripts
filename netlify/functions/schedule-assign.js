@@ -191,52 +191,88 @@ export const handler = async (event) => {
         }
       }
 
+      // ── Build the payload by PASS-THROUGH, never by a hand-written list ──
+      // 2026-08-11 incident: the payload used to be a fixed list of fields
+      // copied from one captured admin-UI save. That capture was of a dish
+      // with no `priceDescription`, so the field was missing from the list,
+      // and every save silently CLEARED it on 31 dishes. A hand-written list
+      // can only ever be correct for the exact object it was copied from.
+      //
+      // Now: start from everything the GET returned, drop only the keys the
+      // POST is known to reject (server-derived / read-only), apply the known
+      // GET→POST renames, and add the UI-only constants. Any field GonnaOrder
+      // adds in future rides along automatically instead of being wiped.
+      const NON_WRITABLE = new Set([
+        "offerId", "position", "catalogPosition", "standardImage", "contentItemId",
+        "variants", "isOrderable", "isDirectlyOrderable", "isExpandable", "isActive",
+        "isSellable", "isClonedOffer", "formattedPrice", "formattedDiscountedPrice",
+        "consumption", "originalOffer", "parentId",
+      ]);
       const attrs = g.attributeDtos || [];
       const countAgainstSlots =
         attrs.find((a) => a.key === "COUNT_AGAINST_SLOT")?.value ?? "0";
 
-      const payload = {
-        categoryId:               g.categoryId,
-        price:                    g.price ?? 0,
-        discount:                 g.discount ?? 0,
-        scheduleId:               scheduleId,
-        externalProductId:        g.externalProductId ?? "",
-        isStockCheckEnabled:      g.isStockCheckEnabled ?? false,
-        countAgainstSlots:        String(countAgainstSlots),
-        stockLevel:               g.stockLevel ?? 0,
-        // GET isSellable → POST sellable. makeVisible=true forces the dish
-        // visible as part of the assignment (Ioustinos's weekly flow:
-        // schedule + visible together); otherwise visibility is preserved.
-        sellable:                 makeVisible ? true : (g.isSellable ?? false),
-        itemType:                 g.itemType || "Orderable",
-        name:                     g.name,
-        shortDescription:         g.shortDescription ?? "",
-        longDescription:          g.longDescription ?? "",
-        vatPercentage:            g.vatPercentage ?? 0,
-        loyaltyPointCollectType:  null,
-        loyaltyPointCollectValue: null,
-        giftCardTemplateId:       "",
-        productId:                null,
-        hierarchyLevel:           g.hierarchyLevel || "PARENT",
-        attributeDtos:            attrs,
-      };
+      const payload = {};
+      for (const [k, v] of Object.entries(g)) {
+        if (!NON_WRITABLE.has(k)) payload[k] = v;   // ← carries priceDescription and anything new
+      }
+      // known GET→POST rename + UI-only fields the admin app always sends
+      payload.sellable = makeVisible ? true : (g.isSellable ?? false);
+      payload.countAgainstSlots = String(countAgainstSlots);
+      payload.loyaltyPointCollectType = g.loyaltyPointCollectType ?? null;
+      payload.loyaltyPointCollectValue = g.loyaltyPointCollectValue ?? null;
+      payload.giftCardTemplateId = g.giftCardTemplateId ?? "";
+      payload.productId = g.productId ?? null;
+      payload.hierarchyLevel = g.hierarchyLevel || "PARENT";
+      payload.attributeDtos = attrs;
+      // the ONLY value this tool intends to change:
+      payload.scheduleId = scheduleId;
 
-      const resp = await goFetch(
+      await goFetch(
         apiBase,
         `/api/v2/stores/${storeId}/catalog/${catalogId}/offer/${offerId}`,
         { method: "POST", body: JSON.stringify(payload) },
         token,
       );
 
-      const applied = resp.scheduleId === scheduleId;
+      // ── Post-write audit: re-read and diff against the pre-write state ────
+      // Trusting the POST response is not enough. Re-GET and compare every
+      // field; anything that changed other than what we deliberately changed
+      // is reported as a FAILURE so the caller can stop the batch.
+      const after = await goFetch(
+        apiBase,
+        `/api/v2/user/stores/${storeId}/catalog/${catalogId}/offer/${offerId}`,
+        {},
+        token,
+      );
+
+      const INTENDED = new Set(["scheduleId", ...(makeVisible ? ["isSellable"] : [])]);
+      const norm = (v) => (v === undefined || v === null ? null : JSON.stringify(v));
+      const collateral = [];
+      for (const k of new Set([...Object.keys(g), ...Object.keys(after)])) {
+        if (INTENDED.has(k)) continue;
+        if (norm(g[k]) !== norm(after[k])) {
+          collateral.push({ field: k, before: g[k] ?? null, after: after[k] ?? null });
+        }
+      }
+
+      const applied = after.scheduleId === scheduleId;
+      const visOk = !makeVisible || after.isSellable === true;
+      const ok = applied && visOk && collateral.length === 0;
+
       return json(200, {
-        ok: applied,
+        ok,
         offerId,
         previousScheduleId: g.scheduleId ?? null,
-        appliedScheduleId: resp.scheduleId ?? null,
-        isSellable: resp.isSellable,
+        appliedScheduleId: after.scheduleId ?? null,
+        isSellable: after.isSellable,
         ...(refreshedToken ? { token: refreshedToken } : {}),
-        ...(applied ? {} : { warning: "Save returned a different scheduleId than requested" }),
+        ...(collateral.length ? { collateralDamage: collateral } : {}),
+        ...(ok ? {} : {
+          warning: collateral.length
+            ? `Save altered ${collateral.length} field(s) it should not have: ${collateral.map(c => c.field).join(", ")}`
+            : "Save did not apply the requested schedule/visibility",
+        }),
       });
     }
 
